@@ -1,0 +1,150 @@
+export const ja = {
+  translation: {
+    home: {
+      delete_all_btn: "すべて削除",
+      create_class_btn: "新規クラス作成",
+    },
+    delete_all_modal: {
+      title: "すべて削除しますか？",
+      message: "本当にすべてのデータを削除しますか？この操作は取り消せません。",
+      cancel: "キャンセル",
+      confirm: "削除",
+    },
+    categories: {
+      class_not_found: "クラスが見つかりません",
+      delete_all: "すべて削除",
+      deletion_title: "削除",
+      new_category_placeholder: "新しいカテゴリ",
+      new_subcategory_placeholder: "新しいサブカテゴリ",
+      change: "変更",
+      no_subcategories: "サブカテゴリなし",
+      rename_title: "名前の変更",
+      close: "閉じる",
+      save: "保存",
+      confirm_delete_all: "すべて削除",
+      reorder: "並べ替え",
+      edit: "編集"
+    },
+    create_class_modal: {
+      title: "クラスを作成",
+      name_placeholder: "クラス名",
+      priority_placeholder: "優先度 (数値)",
+      photo_advice: "正方形の写真を推奨",
+      cancel: "キャンセル",
+      create: "作成",
+    },
+    class: {
+      create_object: "オブジェクト作成",
+      categories: "カテゴリ",
+      tags: "タグ",
+      change_photo: "写真を変更",
+      delete_class: "クラスを削除",
+      settings: "設定",
+      delete_modal_title: "削除",
+      delete_modal_close: "閉じる",
+      delete_modal_confirm: "クラスを削除",
+      photo_copy_error: "写真コピーエラー:",
+      class: "クラス",
+      not_found: "クラスが見つかりません",
+      top10: "トップ10:",
+      no_objects: "オブジェクトなし",
+      search: "検索"
+    },
+    tags: {
+      title: "タグ",
+      add: "追加",
+      edit: "変更",
+      delete: "削除",
+      empty_in_class: "このクラスにはまだタグがありません",
+      done: "完了",
+      cancel: "キャンセル",
+    },
+    create_object_modal: {
+      title: "オブジェクト作成",
+      name_label: "名前",
+      name_placeholder: "名前を入力",
+      tags_label: "タグ",
+      select_tags: "タグを選択",
+      tags_selected: "個のタグを選択中",
+      no_tags_in_class: "このクラスにはまだタグがありません",
+      done: "完了",
+      cancel: "キャンセル",
+      create: "作成",
+    },
+    object: {
+      loading: "読み込み中...",
+      new_title: "新しい名前",
+      update_rank_placeholder: "ランクを更新",
+      failed_delete: "オブジェクトの削除に失敗しました",
+      cancel: "キャンセル",
+      save: "保存",
+      delete: "削除",
+      object: "オブジェクト",
+      description: "説明",
+      title: "名前",
+      rank: "ランク",
+      edit: "編集",
+      categories: "カテゴリ",
+      deletion: "オブジェクトの削除",
+      deletion_warn_msg: "オブジェクトを削除しますか？",
+      auto_calc_cats_based_by_subs: "カテゴリランクの自動計算",
+      auto_calc_object_by_cats: "オブジェクトランクの自動計算",
+      no_categories: "カテゴリなし",
+      no_subcategories: "サブカテゴリなし",
+      top_categories: "トップカテゴリ",
+      without_name: "名称未設定",
+      grade: "評価",
+      tags: "タグ",
+      not_found: "オブジェクトが見つかりません"
+    },
+    gallery: {
+      missing_id_warning: "GalleryScreen: IDパラメータがありません",
+      empty_text: "メディアなし",
+      play_video: "再生",
+      not_found: "動画が見つかりません"
+    },
+    notes: {
+      no_notes: "メモはまだありません",
+      read_more: "続きを読む",
+      notes: "メモ",
+      creating: "新規メモ",
+      create: "作成",
+      delete_title: "メモを削除？",
+      delete_message: "このメモを削除してもよろしいですか？この操作は取り消せません。",
+      attachment: "添付ファイル"
+    },
+    common: {
+      cancel: "キャンセル",
+      close: "閉じる",
+      save: "保存",
+      delete: "削除",
+      create: "作成",
+      done: "完了",
+      edit: "変更",
+      settings: "設定",
+      yes: "はい",
+      no: "いいえ",
+      delete_all: "すべて削除",
+      deletion: "削除"
+    },
+    warnings: {
+      delete_all_confirmation: "本当にすべてのデータを削除しますか？この操作は取り消せません。",
+    },
+    pickImage: {
+      pick: "写真を選択",
+      recommend_square_photo: "写真は正方形に圧縮されます",
+      square: "正方形",
+      rectangle: "長方形",
+      copyError: ""
+    },
+    language: {
+      change_language: "言語を変更",
+      select_language: "言語を選択してください",
+
+    },
+    system: {
+      no_gallery_permission: "ギャラリーへのアクセス権がありません"
+    }
+  },
+};
+export default ja;

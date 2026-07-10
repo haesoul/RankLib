@@ -1,0 +1,48 @@
+# Django и DRF
+Django==5.0.1
+djangorestframework==3.14.0
+django-filter==23.5
+
+# JWT Authentication
+djangorestframework-simplejwt==5.3.1
+
+# CORS
+django-cors-headers==4.3.1
+
+# Redis для кэширования
+django-redis==5.4.0
+redis==5.0.1
+
+# База данных (опционально)
+psycopg2-binary==2.9.9  # PostgreSQL
+mysqlclient==2.2.1      # MySQL
+
+# OpenAPI документация
+drf-spectacular==0.27.1
+
+# Валидация и утилиты
+python-decouple==3.8
+python-dotenv==1.0.0
+
+# Celery для фоновых задач (опционально)
+celery==5.3.6
+django-celery-beat==2.5.0
+
+# Email
+django-anymail==10.2
+
+# Тестирование
+pytest==7.4.4
+pytest-django==4.7.0
+factory-boy==3.3.0
+
+# Производственные зависимости
+gunicorn==21.2.0
+whitenoise==6.6.0
+
+# Мониторинг (опционально)
+sentry-sdk==1.39.2
+
+# Утилиты
+python-dateutil==2.8.2
+pytz==2024.1
