@@ -1,5 +1,4 @@
 import { Category, ClassOfGrading, GradeObject, MediaItem, Tag } from "@/realm/models";
-import { onChangeClass } from "@/realm/onChangeClass";
 import * as FileSystem from "expo-file-system";
 import * as ImagePicker from 'expo-image-picker';
 import Realm from "realm";
@@ -214,46 +213,3 @@ export const deleteSelectedMedia = ({realm, obj, media, selectedIndexes, setSele
 
 
 
-
-export async function batchCreateObjects({
-  realm,
-  items,
-  classObj,
-  tags,
-}: {
-  realm: Realm;
-  items: { name: string; photo?: string }[];
-  classObj: ClassOfGrading;
-  tags?: Tag[];
-}) {
-  const validItems = items.filter(i => i.name.trim());
-  if (!validItems.length) return;
-
-
-  const prepared = await Promise.all(
-    validItems.map(async (item) => {
-      if (!item.photo) return { name: item.name, destPath: undefined };
-      const id = new Realm.BSON.ObjectId();
-      const destPath = `${FileSystem.documentDirectory}${id.toHexString()}.jpg`;
-      await FileSystem.copyAsync({ from: item.photo, to: destPath });
-      return { name: item.name, destPath, id };
-    })
-  );
-
-  realm.write(() => {
-    for (const item of prepared) {
-      const objectId = (item as any).id ?? new Realm.BSON.ObjectId();
-      const newObj = realm.create(GradeObject, {
-        _id: objectId,
-        name: item.name.trim(),
-        photo: item.destPath ?? undefined,
-        class_of_object: classObj,
-        categories_of_object: [],
-        overall_rank: null,
-        tags: tags ? [...tags] : [],
-      }) as GradeObject;
-      classObj.objects.push(newObj);
-      onChangeClass(realm, classObj._id ?? null);
-    }
-  });
-}

@@ -11,6 +11,7 @@ interface SettingsButtonProps {
   title: string;
   subtitle?: string;
   icon?: IconName;
+  iconsColor?: string;
   rightIcon?: IconName;
   rightElement?: React.ReactNode;
   onPress: () => void;
@@ -43,6 +44,7 @@ export default function SettingsButton({
   title,
   subtitle,
   icon,
+  iconsColor,
   rightIcon = 'chevron-right',
   rightElement,
   onPress,
@@ -79,7 +81,7 @@ export default function SettingsButton({
       >
         {icon && (
           <View style={[styles.iconContainer, { backgroundColor: `${iconColor}18` }]}>
-            <MaterialIcons name={icon} size={20} color={iconColor} />
+            <MaterialIcons name={icon} size={20} color={iconsColor ? iconsColor : iconColor} />
           </View>
         )}
         <View style={styles.textContainer}>

@@ -1,5 +1,6 @@
 import { ClassOfGrading } from "@/realm/models";
 import { createClassesBulk } from "@/services/CRUD/class/class.client";
+import { downloadImageToLocalStorage } from "@/utils/downloadImage";
 import { useRealm } from "@realm/react";
 import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -18,6 +19,7 @@ import {
   View,
 } from "react-native";
 import Realm from "realm";
+
 
 // --- Colors ---
 const Colors = {
@@ -65,7 +67,7 @@ const EXAMPLE_JSON_SINGLE = `{
   "objectsName": "Тайтлы",
   "noteName": "Заметка",
   "notesName": "Заметки",
-  "photo": "url",
+  "photo": "url"
 }`;
 
 const EXAMPLE_JSON_BATCH = `[
@@ -74,19 +76,19 @@ const EXAMPLE_JSON_BATCH = `[
     "priority": 5,
     "objectName": "Тайтл",
     "objectsName": "Тайтлы",
-    "photo": "url",
+    "photo": "url"
   },
   {
     "name": "Игры",
     "priority": 3,
     "objectName": "Игра",
     "objectsName": "Игры",
-    "photo": "url",
+    "photo": "url"
   },
   {
     "name": "Фильмы",
     "priority": 4,
-    "photo": "url",
+    "photo": "url"
   }
 ]`;
 
@@ -163,7 +165,9 @@ export default function ProMainScreen() {
 
     let parsed: any;
     try {
-      parsed = JSON.parse(jsonText);
+      const sanitized = jsonText.replace(/,(\s*[}\]])/g, "$1");
+      parsed = JSON.parse(sanitized);
+      // parsed = JSON.parse(jsonText);
     } catch (e) {
       setStatus("error");
       setMessage("Невалидный JSON: " + (e as Error).message);
@@ -180,6 +184,15 @@ export default function ProMainScreen() {
 
       const payload = parsed as ProClassPayload;
 
+      let localPhoto: string | undefined;
+      try {
+        localPhoto = await downloadImageToLocalStorage(payload.photo);
+      } catch (err) {
+        setStatus("error");
+        setMessage("Не удалось скачать фото: " + (err as Error).message);
+        return;
+      }
+
       try {
         realm.write(() => {
           realm.create<ClassOfGrading>("ClassOfGrading", {
@@ -193,7 +206,7 @@ export default function ProMainScreen() {
             notesName: payload.notesName?.trim() || undefined,
             objectName: payload.objectName?.trim() || undefined,
             objectsName: payload.objectsName?.trim() || undefined,
-            photo: payload.photo?.trim()
+            photo: localPhoto,
           });
         });
         setStatus("success");
@@ -211,20 +224,39 @@ export default function ProMainScreen() {
         return;
       }
 
-      const classesData = (parsed as ProClassPayload[]).map((item) => ({
+const rawItems = parsed as ProClassPayload[];
+      const failedPhotos: string[] = [];
+      const downloadedPhotos = await Promise.all(
+        rawItems.map(async (item) => {
+          try {
+            return await downloadImageToLocalStorage(item.photo);
+          } catch (err) {
+            failedPhotos.push(item.name);
+            console.warn(`Фото для "${item.name}" не скачалось:`, err);
+            return undefined;
+          }
+        })
+      );
+
+      const classesData = rawItems.map((item, i) => ({
         name: item.name,
         priority: item.priority?.toString(),
         noteName: item.noteName,
         notesName: item.notesName,
         objectName: item.objectName,
         objectsName: item.objectsName,
-        photo: item.photo,
+        photo: downloadedPhotos[i],
       }));
 
       try {
         const ids = await createClassesBulk(realm, classesData);
         setStatus("success");
-        setMessage(t("pro_mode.success_batch", { count: ids?.length ?? 0 }));
+        setMessage(
+          failedPhotos.length
+            ? t("pro_mode.success_batch", { count: ids?.length ?? 0 }) +
+                ` (без фото: ${failedPhotos.join(", ")})`
+            : t("pro_mode.success_batch", { count: ids?.length ?? 0 })
+        );
       } catch (err) {
         setStatus("error");
         setMessage("Ошибка Realm: " + (err as Error).message);

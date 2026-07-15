@@ -13,12 +13,11 @@ interface CreateObjectArgs extends Callbacks {
   photo?: string | undefined;
   classObj: ClassOfGrading;
   tags?: Tag[] | Realm.List<Tag> | null | undefined;
-
+  overallRank?: number;
+  description?: string;
 }
 
-
-
-export async function createObject({realm, name, photo, classObj, tags}: CreateObjectArgs) {
+export async function createObject({realm, name, photo, classObj, tags, overallRank, description}: CreateObjectArgs) {
     if (!name?.trim()) return;
     const object_id = new Realm.BSON.ObjectId()
     let destPath: string | undefined;
@@ -39,7 +38,8 @@ export async function createObject({realm, name, photo, classObj, tags}: CreateO
         photo: destPath ?? undefined,
         class_of_object: classObj,
         categories_of_object: [],
-        overall_rank: null,
+        overall_rank: overallRank ?? null,
+        description: description?.trim() || undefined,
         tags: tags ? Array.from(tags) : [],
         }) as GradeObject;
 
@@ -143,4 +143,52 @@ export function deleteObject(realm: Realm | undefined | null, object: GradeObjec
     console.error("deleteObjectService error:", e);
     return false;
   }
+}
+
+
+export async function batchCreateObjects({
+  realm,
+  items,
+  classObj,
+  tags,
+}: {
+  realm: Realm;
+  items: { name: string; photo?: string; overallRank?: number; description?: string }[];
+  classObj: ClassOfGrading;
+  tags?: Tag[];
+}) {
+  const validItems = items.filter(i => i.name.trim());
+  if (!validItems.length) return;
+
+  const prepared = await Promise.all(
+    validItems.map(async (item) => {
+      if (!item.photo) {
+        return { name: item.name, destPath: undefined, overallRank: item.overallRank, description: item.description };
+      }
+      const id = new Realm.BSON.ObjectId();
+      const destPath = `${FileSystem.documentDirectory}${id.toHexString()}.jpg`;
+      await FileSystem.copyAsync({ from: item.photo, to: destPath });
+      return { name: item.name, destPath, id, overallRank: item.overallRank, description: item.description };
+    })
+  );
+
+  realm.write(() => {
+    for (const item of prepared) {
+      const objectId = (item as any).id ?? new Realm.BSON.ObjectId();
+      const newObj = realm.create(GradeObject, {
+        _id: objectId,
+        name: item.name.trim(),
+        photo: item.destPath ?? undefined,
+        class_of_object: classObj,
+        categories_of_object: [],
+        overall_rank: item.overallRank ?? null,
+        description: item.description?.trim() || undefined,
+        tags: tags ? [...tags] : [],
+      }) as GradeObject;
+      classObj.objects.push(newObj);
+    }
+    // onChangeClass re-syncs every object of the class anyway, so one call
+    // after the whole batch is inserted is enough (was O(n^2) per-item before)
+    onChangeClass(realm, classObj._id ?? null);
+  });
 }

@@ -16,7 +16,7 @@ import { useObject, useRealm } from "@realm/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from "react-native-draggable-flatlist";
 import Realm from "realm";
 import styles from '../STYLES';
@@ -305,6 +305,7 @@ export default function CategoriesReorderPage() {
   };
 
   return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <View style={styles.mainConatiner}>
       <View style={styles.container}>
 
@@ -466,7 +467,7 @@ export default function CategoriesReorderPage() {
           />
         </View>
       </Modal>
-    </View>
+    </View></KeyboardAvoidingView>
   );
 }
 
@@ -508,20 +509,6 @@ const localStyles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // addCatRow: {
-  //   flexDirection: 'row',
-  //   alignItems: 'center',
-  //   marginBottom: 14,
-  // },
-  // addCatBtn: {
-  //   width: 46,
-  //   height: 46,
-  //   borderRadius: 12,
-  //   backgroundColor: '#4A90E2',
-  //   justifyContent: 'center',
-  //   alignItems: 'center',
-  //   flexShrink: 0,
-  // },
 
   addCatRow: {
     flexDirection: 'row',
@@ -654,26 +641,6 @@ const localStyles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 6,
   },
-
-  // addSubRow: {
-  //   flexDirection: 'row',
-  //   alignItems: 'center',
-  //   marginTop: 4,
-  // },
-  // addSubInputs: {
-  //   flex: 1,
-  //   flexDirection: 'row',
-  //   alignItems: 'center',
-  // },
-  // addSubBtn: {
-  //   width: 44,
-  //   height: 44,
-  //   borderRadius: 11,
-  //   backgroundColor: '#4A90E2',
-  //   justifyContent: 'center',
-  //   alignItems: 'center',
-  //   flexShrink: 0,
-  // },
   addSubRow: {
     flexDirection: 'row', 
     alignItems: 'center', 

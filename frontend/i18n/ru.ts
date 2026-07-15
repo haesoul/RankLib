@@ -9,6 +9,7 @@ export const ru = {
       delete: "Удалить",
       create: "Создать",
       done: "Готово",
+      back: "Назад",
       edit: "Редактировать",
       editing: "Редактирование",
       change: "Изменить",
@@ -78,6 +79,8 @@ export const ru = {
       notes_name: "Заметки (во множественном числе)",
 
       class_card: "Карточка класса",
+
+      pro_mode: "Pro режим",
       
     },
 
@@ -145,6 +148,7 @@ export const ru = {
       select_language: "Выберите язык",
     },
     pro_mode: {
+      create_by_json: "Создать через JSON",
       json_executor: "JSON Script Executor",
       insert_example: "Вставить пример",
       execute_script: "Выполнить скрипт",
@@ -152,20 +156,23 @@ export const ru = {
       field_docs: "Документация по полям",
       single_object: "Один объект",
       batch_objects: "Массово (массив)",
-      // Success messages
       success_single: 'Класс "{{name}}" успешно создан',
       success_batch: "Создано классов: {{count}}",
-      // Docs notes
       docs_note_single: "Скрипт принимает JSON-объект. Допустимые поля:",
       docs_note_batch: "Скрипт принимает массив JSON-объектов []. Каждый элемент:",
-      categories_warning: "⚠ Создание категорий, объектов и тегов — через отдельные Pro-экраны.",
-      // Schema field descriptions
+      categories_warning: "⚠ Создание объектов — через отдельные Pro-экраны.",
       schema_name: "Название класса",
       schema_priority: "Приоритет сортировки (по умолчанию 1)",
       schema_object_name: 'Объект — ед. число (напр. "Персонаж")',
       schema_objects_name: 'Объекты — мн. число (напр. "Персонажи")',
       schema_note_name: 'Заметка — ед. число (напр. "Заметка")',
       schema_notes_name: 'Заметки — мн. число (напр. "Заметки")',
+      schema_overall_rank: "Числовой ранг объекта",
+      schema_description: "Текст описания в свободной форме",
+      success_single_object: "Объект \"{{name}}\" создан",
+      success_batch_objects: "Создано объектов: {{count}}",
+      object_extra_warning: "Категории, медиафайлы, заметки и теги можно добавить только после создания, внутри самого объекта.",
+      class_not_found: "Класс не найден — проверьте id в маршруте"
     }
   },
 };

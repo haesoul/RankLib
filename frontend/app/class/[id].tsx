@@ -9,10 +9,12 @@ import ShowAllObjectsOfClass from "@/components/features/object/List/ObjectList"
 import {
   ClassOfGrading
 } from "@/realm/models";
+import { deleteClass } from "@/services/CRUD/class/class.client";
+import { getProModeStatus } from "@/tools";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useObject, useRealm } from "@realm/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Modal as RNModal,
@@ -43,10 +45,18 @@ export default function ClassDetail() {
   const tagsInClass = classObj?.tags ?? []
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   
+  const [isProMode, setIsProMode] = useState(false)
 
   
   const {t, i18n} = useTranslation()
 
+  useEffect(() => {
+    async function loadMode() {
+      const mode = await getProModeStatus()
+      if (mode === 'true')  setIsProMode(true); else setIsProMode(false)
+    }
+    loadMode()
+  }, [])
   
   const classSettingsSections = [
     {
@@ -88,6 +98,17 @@ export default function ClassDetail() {
           icon: 'grade' as const,
           onPress: () => router.push(`/class/RankType/${id}`)
         },
+        ...(isProMode
+          ? [
+              {
+                id: 'pro_mode',
+                title: t('pro_mode.create_by_json'),
+                icon: 'create' as const,
+                variant: 'primary' as const,
+                onPress: () => router.push(`/class/ProScreen/${id}`)
+              },
+            ]
+        : []),
       ]
     },
     {
@@ -131,13 +152,11 @@ export default function ClassDetail() {
       ]
     },
   ];
-<Button title={t('object.mass_create')} onPress={() => setShowMassCreateObject(true)}/>
+  // <Button title={t('object.mass_create')} onPress={() => setShowMassCreateObject(true)}/>
 
 
-  function deleteClass() {
-    realm.write(() => {
-        realm.delete(classObj)
-      })
+  function deleteC() {
+    deleteClass(realm, classObj!);
     router.push('/');
     
   }
@@ -248,7 +267,7 @@ export default function ClassDetail() {
             }
             rightOption={
               { label: t('class.delete_class'),
-                onPress: deleteClass,
+                onPress: deleteC,
                 destructive: true,
                 textSize: 13
               }

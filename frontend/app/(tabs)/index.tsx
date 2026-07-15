@@ -10,7 +10,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function Home() {
@@ -22,7 +22,7 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
 
   return (
-    <SafeAreaView style={[styles.root, { paddingBottom: insets.bottom + 100 }]}>
+    <SafeAreaView style={[styles.root, { paddingBottom: insets.bottom }]}>
       <View style={styles.topRow}>
         <Button
           title={t('class.create')}
@@ -36,7 +36,6 @@ export default function Home() {
         >
           <MaterialIcons name="settings" size={24} color="#fff" />
         </Button>
-        <Button onPress={() => router.push('/ProMainScreen')}><Text>Create by json</Text></Button>
       </View>
 
       <View style={{ flex: 1 }}>

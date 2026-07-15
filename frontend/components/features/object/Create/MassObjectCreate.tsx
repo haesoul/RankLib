@@ -3,7 +3,7 @@ import Input from "@/components/UI/Input/Input";
 import PickImage from "@/components/UI/PickImage/PickImage";
 import { Colors } from "@/CONSTANTS";
 import { ClassOfGrading, Tag } from "@/realm/models";
-import { batchCreateObjects } from "@/tools/objectService";
+import { batchCreateObjects } from "@/services/CRUD/object/object.client";
 import React, { memo, useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -38,13 +38,7 @@ interface ObjectFormItem {
   photo: string | undefined;
 }
 
-// ---------------------------------------------------------------------------
-// FormRow — мемоизированная строка формы
-//
-// ✅ memo: при вводе текста в одну строку React не перерисовывает остальные N-1 строк.
-// Без memo каждый setState на items перезапускал рендер ВСЕГО списка.
-// ✅ Все колбэки принимаем стабильными ссылками (useCallback в родителе).
-// ---------------------------------------------------------------------------
+
 
 interface FormRowProps {
   item: ObjectFormItem;
@@ -97,9 +91,6 @@ const FormRow = memo(function FormRow({
   );
 });
 
-// ---------------------------------------------------------------------------
-// TagChip — мемоизированный чип тега (используется в модале выбора)
-// ---------------------------------------------------------------------------
 
 interface TagChipProps {
   tag: Tag;

@@ -1,18 +1,24 @@
-import { ClassOfGrading, GradeObject } from "@/realm/models";
+import { ClassOfGrading } from "@/realm/models";
+import { batchCreateObjects, createObject } from "@/services/CRUD/object/object.client";
+import { downloadImageToLocalStorage, isDownloadedTempFile } from "@/utils/downloadImage";
 import { useRealm } from "@realm/react";
-import { useLocalSearchParams } from "expo-router";
-import React, { useRef, useState } from "react";
+import * as FileSystem from "expo-file-system";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    Animated,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Realm from "realm";
 
@@ -36,44 +42,81 @@ const Colors = {
 // --- Types ---
 interface ProObjectPayload {
   name: string;
-  overall_rank?: number | null;
+  photo?: string;
+  overall_rank?: number;
   description?: string;
-  object_name?: string;
 }
 
 // --- Schema Docs ---
 const SCHEMA_DOCS = [
-  { field: "name", type: "string", required: true, desc: "Название объекта" },
-  { field: "overall_rank", type: "number | null", required: false, desc: "Общий ранг (1–10, float)" },
-  { field: "description", type: "string", required: false, desc: "Описание объекта" },
-  { field: "object_name", type: "string", required: false, desc: "Кастомное имя объекта" },
+  { field: "name", type: "string", required: true, descKey: "schema_name" },
+  { field: "overall_rank", type: "number", required: false, descKey: "schema_overall_rank" },
+  { field: "description", type: "string", required: false, descKey: "schema_description" },
+  { field: "photo", type: "string", required: false, descKey: "schema_photo" },
 ];
 
-const EXAMPLE_JSON = `{
-  "name": "Fullmetal Alchemist",
-  "overall_rank": 9.5,
-  "description": "Культовое аниме про алхимиков",
-  "object_name": "FMA"
+const EXAMPLE_JSON_SINGLE = `{
+  "name": "Тайтл 1",
+  "overall_rank": 8.5,
+  "description": "Краткое описание",
+  "photo": "url"
 }`;
 
-const EXAMPLE_BATCH_JSON = `[
-  { "name": "Naruto", "overall_rank": 7.8 },
-  { "name": "Bleach", "overall_rank": 7.2 },
-  { "name": "One Piece", "overall_rank": 9.1 }
+const EXAMPLE_JSON_BATCH = `[
+  {
+    "name": "Тайтл 1",
+    "overall_rank": 8.5,
+    "photo": "url"
+  },
+  {
+    "name": "Тайтл 2",
+    "description": "Краткое описание",
+    "photo": "url"
+  }
 ]`;
 
-// --- Validation for single object ---
+// --- Validation ---
 function validateSingle(payload: any): { valid: boolean; error?: string } {
-  if (typeof payload !== "object" || Array.isArray(payload)) {
-    return { valid: false, error: "Ожидался объект {}" };
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+    return { valid: false, error: 'JSON должен быть объектом {}' };
   }
   if (!payload.name || typeof payload.name !== "string" || !payload.name.trim()) {
-    return { valid: false, error: '"name" обязателен и должен быть строкой' };
+    return { valid: false, error: 'Поле "name" обязательно и должно быть строкой' };
   }
+  const MIN_RANK = 0;
+  const MAX_RANK = 10;
+
   if (payload.overall_rank !== undefined && payload.overall_rank !== null) {
-    const r = Number(payload.overall_rank);
-    if (isNaN(r) || r < 1 || r > 10) {
-      return { valid: false, error: '"overall_rank" должен быть числом от 1 до 10' };
+    if (typeof payload.overall_rank !== "number" || isNaN(payload.overall_rank)) {
+      return { valid: false, error: '"overall_rank" должен быть числом' };
+    }
+    if (payload.overall_rank < MIN_RANK || payload.overall_rank > MAX_RANK) {
+      return {
+        valid: false,
+        error: `"overall_rank" должен быть в диапазоне ${MIN_RANK}–${MAX_RANK} (получено ${payload.overall_rank})`,
+      };
+    }
+  }
+  if (payload.description !== undefined && typeof payload.description !== "string") {
+    return { valid: false, error: '"description" должен быть строкой' };
+  }
+  if (payload.photo !== undefined && typeof payload.photo !== "string") {
+    return { valid: false, error: '"photo" должен быть строкой' };
+  }
+  return { valid: true };
+}
+
+function validateBatch(payload: any): { valid: boolean; error?: string } {
+  if (!Array.isArray(payload)) {
+    return { valid: false, error: "Для массового режима JSON должен быть массивом []" };
+  }
+  if (payload.length === 0) {
+    return { valid: false, error: "Массив не должен быть пустым" };
+  }
+  for (let i = 0; i < payload.length; i++) {
+    const result = validateSingle(payload[i]);
+    if (!result.valid) {
+      return { valid: false, error: `Элемент [${i}]: ${result.error}` };
     }
   }
   return { valid: true };
@@ -81,14 +124,29 @@ function validateSingle(payload: any): { valid: boolean; error?: string } {
 
 // --- Component ---
 export default function ProObjectScreen() {
+  const { t } = useTranslation();
   const realm = useRealm();
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const [jsonText, setJsonText] = useState(EXAMPLE_JSON);
+  const classOfGrading = useMemo(() => {
+    if (!id) return null;
+    try {
+      return realm.objectForPrimaryKey<ClassOfGrading>(
+        "ClassOfGrading",
+        new Realm.BSON.ObjectId(id)
+      );
+    } catch {
+      return null;
+    }
+  }, [realm, id]);
+
+  type Mode = "single" | "batch";
+  const [mode, setMode] = useState<Mode>("single");
+  const [jsonText, setJsonText] = useState(EXAMPLE_JSON_SINGLE);
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [docsExpanded, setDocsExpanded] = useState(false);
-  const [mode, setMode] = useState<"single" | "batch">("single");
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const pulse = () => {
@@ -98,89 +156,125 @@ export default function ProObjectScreen() {
     ]).start();
   };
 
-  // Resolve class
-  const classObj = id
-    ? realm.objectForPrimaryKey<ClassOfGrading>(
-        "ClassOfGrading",
-        new Realm.BSON.ObjectId(id)
-      )
-    : null;
+  const handleModeChange = (newMode: Mode) => {
+    setMode(newMode);
+    setStatus("idle");
+    setMessage(null);
+    setJsonText(newMode === "single" ? EXAMPLE_JSON_SINGLE : EXAMPLE_JSON_BATCH);
+  };
 
-  const handleExecute = () => {
+  const handleExecute = async () => {
+    if (!classOfGrading) {
+      setStatus("error");
+      setMessage(t("pro_mode.class_not_found"));
+      return;
+    }
+
     setStatus("loading");
     setMessage(null);
     pulse();
 
-    if (!classObj) {
-      setStatus("error");
-      setMessage("Класс не найден по id: " + id);
-      return;
-    }
-
     let parsed: any;
     try {
-      parsed = JSON.parse(jsonText);
+      const sanitized = jsonText.replace(/,(\s*[}\]])/g, "$1");
+      parsed = JSON.parse(sanitized);
     } catch (e) {
       setStatus("error");
       setMessage("Невалидный JSON: " + (e as Error).message);
       return;
     }
 
-    // Normalize: single → array
-    const items: any[] = Array.isArray(parsed) ? parsed : [parsed];
-
-    if (items.length === 0) {
-      setStatus("error");
-      setMessage("Массив пуст");
-      return;
-    }
-
-    // Validate all
-    for (let i = 0; i < items.length; i++) {
-      const v = validateSingle(items[i]);
-      if (!v.valid) {
+    if (mode === "single") {
+      const validation = validateSingle(parsed);
+      if (!validation.valid) {
         setStatus("error");
-        setMessage(`Объект [${i}]: ${v.error}`);
+        setMessage(validation.error ?? "Ошибка валидации");
         return;
       }
-    }
 
-    try {
-      realm.write(() => {
-        for (const item of items) {
-          const payload = item as ProObjectPayload;
-          const rank =
-            payload.overall_rank != null
-              ? Number(Number(payload.overall_rank).toFixed(2))
-              : null;
+      const payload = parsed as ProObjectPayload;
 
-          const newObj = realm.create<GradeObject>("GradeObject", {
-            _id: new Realm.BSON.ObjectId(),
-            name: payload.name.trim(),
-            class_of_object: classObj,
-            categories_of_object: [],
-            overall_rank: rank,
-            media: [],
-            notes: [],
-            tags: [],
-            description: payload.description?.trim() || undefined,
-            object_name: payload.object_name?.trim() || undefined,
-          });
+      let localPhoto: string | undefined;
+      try {
+        localPhoto = await downloadImageToLocalStorage(payload.photo);
+      } catch (err) {
+        setStatus("error");
+        setMessage("Не удалось скачать фото: " + (err as Error).message);
+        return;
+      }
 
-          classObj.objects.push(newObj);
+      try {
+        await createObject({
+          realm,
+          name: payload.name,
+          photo: localPhoto,
+          classObj: classOfGrading,
+          overallRank: payload.overall_rank,
+          description: payload.description,
+        });
+        if (isDownloadedTempFile(localPhoto)) {
+          FileSystem.deleteAsync(localPhoto!, { idempotent: true }).catch((e: any) =>
+            console.warn("Не удалось удалить временный файл фото:", e)
+          );
         }
-      });
+        setStatus("success");
+        setMessage(t("pro_mode.success_single_object", { name: payload.name.trim() }));
+      } catch (err) {
+        setStatus("error");
+        setMessage("Ошибка Realm: " + (err as Error).message);
+      }
+    } else {
+      // Batch mode
+      const validation = validateBatch(parsed);
+      if (!validation.valid) {
+        setStatus("error");
+        setMessage(validation.error ?? "Ошибка валидации");
+        return;
+      }
 
-      const count = items.length;
-      setStatus("success");
-      setMessage(
-        count === 1
-          ? `Объект "${items[0].name.trim()}" успешно создан`
-          : `${count} объектов успешно создано`
+      const rawItems = parsed as ProObjectPayload[];
+      const failedPhotos: string[] = [];
+      const downloadedPhotos = await Promise.all(
+        rawItems.map(async (item) => {
+          try {
+            return await downloadImageToLocalStorage(item.photo);
+          } catch (err) {
+            failedPhotos.push(item.name);
+            console.warn(`Фото для "${item.name}" не скачалось:`, err);
+            return undefined;
+          }
+        })
       );
-    } catch (err) {
-      setStatus("error");
-      setMessage("Ошибка Realm: " + (err as Error).message);
+
+      try {
+        await batchCreateObjects({
+          realm,
+          classObj: classOfGrading,
+          items: rawItems.map((item, i) => ({
+            name: item.name,
+            photo: downloadedPhotos[i],
+            overallRank: item.overall_rank,
+            description: item.description,
+          })),
+        });
+        downloadedPhotos.forEach((photoPath) => {
+          if (isDownloadedTempFile(photoPath)) {
+            FileSystem.deleteAsync(photoPath!, { idempotent: true }).catch((e: any) =>
+              console.warn("Не удалось удалить временный файл фото:", e)
+            );
+          }
+        });
+        setStatus("success");
+        setMessage(
+          failedPhotos.length
+            ? t("pro_mode.success_batch_objects", { count: rawItems.length }) +
+                ` (без фото: ${failedPhotos.join(", ")})`
+            : t("pro_mode.success_batch_objects", { count: rawItems.length })
+        );
+      } catch (err) {
+        setStatus("error");
+        setMessage("Ошибка Realm: " + (err as Error).message);
+      }
     }
   };
 
@@ -191,188 +285,198 @@ export default function ProObjectScreen() {
       ? Colors.error
       : Colors.primary;
 
+  const exampleJson = mode === "single" ? EXAMPLE_JSON_SINGLE : EXAMPLE_JSON_BATCH;
+
+  if (!classOfGrading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+        <View style={styles.centeredError}>
+          <Text style={styles.errorTitle}>{t("pro_mode.class_not_found")}</Text>
+          <TouchableOpacity style={styles.execBtn} onPress={() => router.back()} activeOpacity={0.8}>
+            <Text style={styles.execBtnText}>{t("common.back")}</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.proBadge}>
-            <Text style={styles.proBadgeText}>PRO</Text>
-          </View>
-          <Text style={styles.title}>Создание объектов</Text>
-          <Text style={styles.subtitle}>JSON Script Executor</Text>
-          {classObj && (
-            <View style={styles.classPill}>
-              <Text style={styles.classPillLabel}>Класс: </Text>
-              <Text style={styles.classPillName}>{classObj.name}</Text>
-            </View>
-          )}
-          {!classObj && (
-            <Text style={styles.errorInline}>⚠ Класс не найден</Text>
-          )}
-        </View>
-
-        {/* Mode toggle */}
-        <View style={styles.modeToggle}>
-          <TouchableOpacity
-            style={[styles.modeBtn, mode === "single" && styles.modeBtnActive]}
-            onPress={() => {
-              setMode("single");
-              setJsonText(EXAMPLE_JSON);
-              setStatus("idle");
-              setMessage(null);
-            }}
-          >
-            <Text style={[styles.modeBtnText, mode === "single" && styles.modeBtnTextActive]}>
-              Один объект
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.modeBtn, mode === "batch" && styles.modeBtnActive]}
-            onPress={() => {
-              setMode("batch");
-              setJsonText(EXAMPLE_BATCH_JSON);
-              setStatus("idle");
-              setMessage(null);
-            }}
-          >
-            <Text style={[styles.modeBtnText, mode === "batch" && styles.modeBtnTextActive]}>
-              Массово (массив)
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Docs toggle */}
-        <TouchableOpacity
-          style={styles.docsToggle}
-          onPress={() => setDocsExpanded((v) => !v)}
-          activeOpacity={0.7}
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.docsToggleIcon}>{docsExpanded ? "▼" : "▶"}</Text>
-          <Text style={styles.docsToggleText}>Документация по полям</Text>
-        </TouchableOpacity>
-
-        {docsExpanded && (
-          <View style={styles.docsBlock}>
-            <Text style={styles.docsNote}>
-              Принимает объект {} или массив [{}]. Поле{" "}
-              <Text style={{ color: Colors.primary }}>class_of_object</Text> подставляется
-              автоматически из параметра маршрута{" "}
-              <Text style={{ color: Colors.accent, fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace" }}>id</Text>.
-            </Text>
-            {SCHEMA_DOCS.map((doc) => (
-              <View key={doc.field} style={styles.docRow}>
-                <View style={styles.docLeft}>
-                  <Text style={styles.docField}>{doc.field}</Text>
-                  <Text style={styles.docType}>{doc.type}</Text>
-                  {doc.required && (
-                    <View style={styles.requiredBadge}>
-                      <Text style={styles.requiredText}>req</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.docDesc}>{doc.desc}</Text>
-              </View>
-            ))}
-            <View style={styles.docsDivider} />
-            <Text style={styles.docsNote}>
-              ⚠ Категории и теги — через отдельные Pro-экраны.
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.proBadge}>
+              <Text style={styles.proBadgeText}>PRO</Text>
+            </View>
+            <Text style={styles.title}>{t("object.create")}</Text>
+            <Text style={styles.subtitle}>
+              {t("pro_mode.json_executor")} · {classOfGrading.name}
             </Text>
           </View>
-        )}
 
-        {/* JSON Input */}
-        <View style={styles.inputWrapper}>
-          <View style={styles.inputHeader}>
-            <Text style={styles.inputLabel}>Script</Text>
+          {/* Mode switcher */}
+          <View style={styles.modeSwitcher}>
             <TouchableOpacity
-              onPress={() => {
-                setJsonText(mode === "single" ? EXAMPLE_JSON : EXAMPLE_BATCH_JSON);
-                setStatus("idle");
-                setMessage(null);
-              }}
-              style={styles.resetBtn}
+              style={[styles.modeBtn, mode === "single" && styles.modeBtnActive]}
+              onPress={() => handleModeChange("single")}
+              activeOpacity={0.7}
             >
-              <Text style={styles.resetBtnText}>Вставить пример</Text>
+              <Text style={[styles.modeBtnText, mode === "single" && styles.modeBtnTextActive]}>
+                {t("pro_mode.single_object")}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modeBtn, mode === "batch" && styles.modeBtnActive]}
+              onPress={() => handleModeChange("batch")}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.modeBtnText, mode === "batch" && styles.modeBtnTextActive]}>
+                {t("pro_mode.batch_objects")}
+              </Text>
             </TouchableOpacity>
           </View>
-          <TextInput
-            style={styles.jsonInput}
-            value={jsonText}
-            onChangeText={(t) => {
-              setJsonText(t);
-              if (status !== "idle") setStatus("idle");
-              setMessage(null);
-            }}
-            multiline
-            autoCorrect={false}
-            autoCapitalize="none"
-            spellCheck={false}
-            placeholder={mode === "single" ? '{\n  "name": "..."\n}' : '[\n  { "name": "..." }\n]'}
-            placeholderTextColor={Colors.textSecondary}
-            textAlignVertical="top"
-            scrollEnabled={false}
-          />
-        </View>
 
-        {/* Status */}
-        {message && (
-          <Animated.View
-            style={[
-              styles.statusMsg,
-              { borderColor: statusColor, backgroundColor: statusColor + "15" },
-              { transform: [{ scale: pulseAnim }] },
-            ]}
+          {/* Docs toggle */}
+          <TouchableOpacity
+            style={styles.docsToggle}
+            onPress={() => setDocsExpanded((v) => !v)}
+            activeOpacity={0.7}
           >
-            <Text style={[styles.statusMsgText, { color: statusColor }]}>
-              {status === "success" ? "✓ " : "✕ "}
-              {message}
-            </Text>
-          </Animated.View>
-        )}
+            <Text style={styles.docsToggleIcon}>{docsExpanded ? "▼" : "▶"}</Text>
+            <Text style={styles.docsToggleText}>{t("pro_mode.field_docs")}</Text>
+          </TouchableOpacity>
 
-        {/* Execute button */}
-        <TouchableOpacity
-          style={[
-            styles.execBtn,
-            !classObj && styles.execBtnDisabled,
-            status === "loading" && styles.execBtnDisabled,
-          ]}
-          onPress={handleExecute}
-          activeOpacity={0.8}
-          disabled={!classObj || status === "loading"}
-        >
-          {status === "loading" ? (
-            <ActivityIndicator color={Colors.text} size="small" />
-          ) : (
-            <>
-              <Text style={styles.execBtnIcon}>▶</Text>
-              <Text style={styles.execBtnText}>Выполнить скрипт</Text>
-            </>
+          {docsExpanded && (
+            <View style={styles.docsBlock}>
+              <Text style={styles.docsNote}>
+                {mode === "single"
+                  ? t("pro_mode.docs_note_single")
+                  : t("pro_mode.docs_note_batch")}
+              </Text>
+              {SCHEMA_DOCS.map((doc) => (
+                <View key={doc.field} style={styles.docRow}>
+                  <View style={styles.docLeft}>
+                    <Text style={styles.docField}>{doc.field}</Text>
+                    <Text style={styles.docType}>{doc.type}</Text>
+                    {doc.required && (
+                      <View style={styles.requiredBadge}>
+                        <Text style={styles.requiredText}>req</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.docDesc}>{t(`pro_mode.${doc.descKey}`)}</Text>
+                </View>
+              ))}
+              <View style={styles.docsDivider} />
+              <Text style={styles.docsNote}>{t("pro_mode.object_extra_warning")}</Text>
+            </View>
           )}
-        </TouchableOpacity>
 
-        <Text style={styles.footer}>
-          Только операция CREATE. Изменения необратимы.
-        </Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          {/* JSON Input */}
+          <View style={styles.inputWrapper}>
+            <View style={styles.inputHeader}>
+              <Text style={styles.inputLabel}>Script</Text>
+              <TouchableOpacity
+                onPress={() => setJsonText(exampleJson)}
+                style={styles.resetBtn}
+              >
+                <Text style={styles.resetBtnText}>{t("pro_mode.insert_example")}</Text>
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={styles.jsonInput}
+              value={jsonText}
+              onChangeText={(text) => {
+                setJsonText(text);
+                if (status !== "idle") setStatus("idle");
+                setMessage(null);
+              }}
+              multiline
+              autoCorrect={false}
+              autoCapitalize="none"
+              spellCheck={false}
+              placeholder={mode === "single" ? '{\n  "name": "...",\n  "overall_rank": 1\n}' : '[{\n  "name": "..."\n}]'}
+              placeholderTextColor={Colors.textSecondary}
+              textAlignVertical="top"
+              scrollEnabled={false}
+            />
+          </View>
+
+          {/* Status message */}
+          {message && (
+            <Animated.View
+              style={[
+                styles.statusMsg,
+                { borderColor: statusColor, backgroundColor: statusColor + "15" },
+                { transform: [{ scale: pulseAnim }] },
+              ]}
+            >
+              <Text style={[styles.statusMsgText, { color: statusColor }]}>
+                {status === "success" ? "✓ " : "✕ "}
+                {message}
+              </Text>
+            </Animated.View>
+          )}
+
+          {/* Execute button */}
+          <TouchableOpacity
+            style={[styles.execBtn, status === "loading" && styles.execBtnDisabled]}
+            onPress={handleExecute}
+            activeOpacity={0.8}
+            disabled={status === "loading"}
+          >
+            {status === "loading" ? (
+              <ActivityIndicator color={Colors.text} size="small" />
+            ) : (
+              <>
+                <Text style={styles.execBtnIcon}>▶</Text>
+                <Text style={styles.execBtnText}>{t("pro_mode.execute_script")}</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <Text style={styles.footer}>{t("pro_mode.create_only_warning")}</Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
   flex: { flex: 1, backgroundColor: Colors.background },
   container: { flex: 1, backgroundColor: Colors.background },
   content: { padding: 20, paddingBottom: 60 },
 
-  header: { marginBottom: 20, alignItems: "flex-start" },
+  centeredError: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+    gap: 20,
+  },
+  errorTitle: {
+    color: Colors.error,
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+
+  header: { marginBottom: 24, alignItems: "flex-start" },
   proBadge: {
     backgroundColor: Colors.primaryTransparent,
     borderWidth: 1,
@@ -388,30 +492,23 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 2,
   },
-  title: { color: Colors.text, fontSize: 26, fontWeight: "700", marginBottom: 2 },
+  title: {
+    color: Colors.text,
+    fontSize: 26,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
   subtitle: {
     color: Colors.textSecondary,
     fontSize: 13,
     fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
-    marginBottom: 10,
   },
-  classPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.glass,
-    borderWidth: 1,
-    borderColor: Colors.glassBorder,
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  classPillLabel: { color: Colors.textSecondary, fontSize: 12 },
-  classPillName: { color: Colors.primary, fontSize: 12, fontWeight: "700" },
-  errorInline: { color: Colors.error, fontSize: 12, marginTop: 4 },
 
-  modeToggle: {
+  modeSwitcher: {
     flexDirection: "row",
     backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.glassBorder,
     borderRadius: 10,
     padding: 4,
     marginBottom: 12,
@@ -420,12 +517,20 @@ const styles = StyleSheet.create({
   modeBtn: {
     flex: 1,
     paddingVertical: 8,
-    borderRadius: 8,
     alignItems: "center",
+    borderRadius: 7,
   },
-  modeBtnActive: { backgroundColor: Colors.primary },
-  modeBtnText: { color: Colors.textSecondary, fontSize: 13, fontWeight: "600" },
-  modeBtnTextActive: { color: Colors.text },
+  modeBtnActive: {
+    backgroundColor: Colors.primary,
+  },
+  modeBtnText: {
+    color: Colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  modeBtnTextActive: {
+    color: Colors.text,
+  },
 
   docsToggle: {
     flexDirection: "row",
@@ -477,9 +582,15 @@ const styles = StyleSheet.create({
   },
   requiredText: { color: Colors.error, fontSize: 9, fontWeight: "700" },
   docDesc: { color: Colors.textSecondary, fontSize: 12, flex: 1, lineHeight: 17 },
-  docsDivider: { height: 1, backgroundColor: Colors.glassBorder, marginVertical: 6 },
+  docsDivider: {
+    height: 1,
+    backgroundColor: Colors.glassBorder,
+    marginVertical: 6,
+  },
 
-  inputWrapper: { marginBottom: 16 },
+  inputWrapper: {
+    marginBottom: 16,
+  },
   inputHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -513,7 +624,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
     lineHeight: 20,
-    minHeight: 220,
+    minHeight: 200,
   },
 
   statusMsg: {
@@ -538,7 +649,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 8,
   },
-  execBtnDisabled: { opacity: 0.5 },
+  execBtnDisabled: { opacity: 0.6 },
   execBtnIcon: { color: Colors.text, fontSize: 14 },
   execBtnText: { color: Colors.text, fontSize: 16, fontWeight: "700", letterSpacing: 0.5 },
 

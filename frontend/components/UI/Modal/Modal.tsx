@@ -1,4 +1,3 @@
-// Modal.tsx (исправленный)
 import { Colors } from '@/CONSTANTS';
 import React, { useEffect } from 'react';
 import {
@@ -38,49 +37,47 @@ const Modal: React.FC<ModalProps> = ({
   const opacity = React.useRef(new Animated.Value(0)).current;
   const translateY = React.useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
-
   const animRef = React.useRef<Animated.CompositeAnimation | null>(null);
   const [mounted, setMounted] = React.useState(visible);
   const [interactive, setInteractive] = React.useState(false);
 
   useEffect(() => {
     if (visible) {
-    animRef.current?.stop();
+      animRef.current?.stop();
 
-    setMounted(true);
-    setInteractive(false);
-    translateY.setValue(SCREEN_HEIGHT);
-    opacity.setValue(0);
+      setMounted(true);
+      setInteractive(false);
+      translateY.setValue(SCREEN_HEIGHT);
+      opacity.setValue(0);
 
-    const openAnim = Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 300,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.sequence([
-        Animated.timing(translateY, {
-          toValue: -8, 
-          duration: 320,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateY, {
-          toValue: 0,
-          duration: 120,
+      const openAnim = Animated.parallel([
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 300,
           easing: Easing.out(Easing.quad),
           useNativeDriver: true,
         }),
-      ]),
-    ]);
+        Animated.sequence([
+          Animated.timing(translateY, {
+            toValue: -8,
+            duration: 320,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(translateY, {
+            toValue: 0,
+            duration: 120,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]),
+      ]);
 
       animRef.current = openAnim;
       openAnim.start(() => {
         animRef.current = null;
         setInteractive(true);
       });
-
     } else {
       animRef.current?.stop();
       setInteractive(false);
@@ -113,6 +110,7 @@ const Modal: React.FC<ModalProps> = ({
   }, [visible, opacity, translateY]);
 
   if (!mounted) return null;
+
   return (
     <RNModal
       transparent
@@ -126,9 +124,8 @@ const Modal: React.FC<ModalProps> = ({
       }}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.keyboard}
-        pointerEvents="box-none"
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+        style={styles.container}
       >
         <TouchableWithoutFeedback
           onPress={() => {
@@ -143,7 +140,11 @@ const Modal: React.FC<ModalProps> = ({
 
         <Animated.View
           pointerEvents={visible ? 'auto' : 'none'}
-          style={[styles.sheetContainer, { transform: [{ translateY }] }, contentStyle]}
+          style={[
+            styles.sheetContainer,
+            { transform: [{ translateY }] },
+            contentStyle,
+          ]}
         >
           <View
             style={[
@@ -161,19 +162,17 @@ const Modal: React.FC<ModalProps> = ({
 };
 
 const styles = StyleSheet.create({
-  keyboard: { flex: 1 },
+  container: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
   backdrop: {
-    ...StyleSheet.absoluteFillObject, 
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.6)',
-    zIndex: 0,
   },
   sheetContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    padding: 20,
-    zIndex: 1, 
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   sheet: {
     backgroundColor: Colors.surfaceDarker,

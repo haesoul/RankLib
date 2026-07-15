@@ -25,12 +25,13 @@ export default function VideoPlayer({
   uri,
   poster,
   isActive,
+  onControlsVisibilityChange,
 }: {
   uri: string;
   poster?: string;
   isActive: boolean;
+  onControlsVisibilityChange?: (isVisible: boolean) => void;
 }) {
-  // Инициализация плеера
   const player = useVideoPlayer(uri, (player) => {
     player.loop = false;
     if (isActive) {
@@ -162,6 +163,7 @@ export default function VideoPlayer({
       return () => clearHideTimer();
   }, [isActive, player]);
 
+
   const clearHideTimer = () => {
     if (hideTimer.current) {
       clearTimeout(hideTimer.current);
@@ -172,6 +174,7 @@ export default function VideoPlayer({
   const hideControls = (animated = true) => {
     clearHideTimer();
     setControlsVisible(false);
+    onControlsVisibilityChange?.(false);
     if (animated) {
       Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start();
     } else {
@@ -184,6 +187,7 @@ export default function VideoPlayer({
   const showControls = (withAutoHide = true) => {
     clearHideTimer();
     setControlsVisible(true);
+    onControlsVisibilityChange?.(true);
     Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
     if (withAutoHide) {
       hideTimer.current = setTimeout(() => {

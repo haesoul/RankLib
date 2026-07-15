@@ -98,7 +98,24 @@ export const updateClass = (
     console.error("Ошибка при обновлении ClassOfGrading:", error);
   }
 };
-
+export function deleteClass(
+  realm: Realm,
+  classObj: ClassOfGrading,
+) {
+  realm.write(() => {
+      realm.delete(classObj)
+    })  
+}
+export function deleteClasses(
+  realm: Realm,
+  classesArray: ClassOfGrading[],
+) {
+  realm.write(() => {
+    classesArray.forEach((classObj) => {
+      realm.delete(classObj);
+    });
+  });
+}
 export interface ClassData {
   name: string;
   photo?: string;

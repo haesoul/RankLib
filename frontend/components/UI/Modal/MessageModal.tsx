@@ -23,14 +23,12 @@ export const MiniToast = ({ visible, message, onClose, duration = 3000 }: MiniTo
     let timer: NodeJS.Timeout;
 
     if (visible) {
-      // Анимация появления сверху
       Animated.spring(translateY, {
-        toValue: 50, // Позиция от верха экрана
+        toValue: 50, 
         useNativeDriver: true,
         speed: 12,
       }).start();
 
-      // Таймер авто-закрытия
       timer = setTimeout(() => {
         handleClose();
       }, duration);
@@ -61,7 +59,7 @@ export const MiniToast = ({ visible, message, onClose, duration = 3000 }: MiniTo
       >
         <Text style={[styles.toastText, { color: Colors.text }]}>{message}</Text>
         <TouchableOpacity style={styles.okButton} onPress={handleClose}>
-          <Text style={[styles.okText, { color: Colors.primary }]}>OK</Text>
+          <Text style={[styles.okText, { color: Colors.primary }]}>OК</Text>
         </TouchableOpacity>
       </Animated.View>
     </Modal>
@@ -72,8 +70,8 @@ const styles = StyleSheet.create({
   toastContainer: {
     position: 'absolute',
     top: 0,
-    left: '10%',
-    right: '10%',
+    left: '5%',
+    right: '5%',
     padding: 15,
     borderRadius: 12,
     borderWidth: 1,

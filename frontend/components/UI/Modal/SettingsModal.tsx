@@ -8,6 +8,7 @@ import SettingsPanel from '@/components/UI/Settings/SettingsPanel';
 import { Colors } from '@/CONSTANTS';
 import { getProModeStatus, toggleProMode } from '@/tools';
 import { useRealm } from '@realm/react';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
@@ -29,6 +30,8 @@ export default function SettingsModal({
   onCreateClass,
 }: SettingsModalProps) {
   const { t } = useTranslation();
+
+  const router = useRouter();
   const realm = useRealm();
   const insets = useSafeAreaInsets();
   const [isProMode, setIsProMode] = useState(false)
@@ -72,6 +75,17 @@ export default function SettingsModal({
           icon: 'language' as const,
           onPress: () => setLangModal(true),
         },
+        ...(isProMode
+          ? [
+              {
+                id: 'json-create',
+                title: t('pro_mode.create_by_json'),
+                icon: 'create' as const,
+                variant: 'primary' as const,
+                onPress: () => router.push('/ProMainScreen'),
+              },
+            ]
+          : []),
       ],
     },
     {

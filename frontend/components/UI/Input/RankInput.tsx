@@ -49,13 +49,13 @@ export const RankInput: React.FC<Props> = ({ value, onChange }) => {
 
 const s = StyleSheet.create({
   badge: {
-    width: 64, height: 36, borderRadius: 8, borderWidth: 1.5,
+    width: 64, height: 40, borderRadius: 8, borderWidth: 1.5,
     alignItems: "center", justifyContent: "center",
     backgroundColor: Colors.backgroundSecondary,
   },
   badgeText: { fontSize: 16, fontWeight: "800", letterSpacing: -0.5 },
   input: {
-    width: 64, height: 36, borderRadius: 8, borderWidth: 1.5,
+    width: 64, height: 40, borderRadius: 8, borderWidth: 1.5,
     backgroundColor: Colors.inputBackground,
     textAlign: "center", fontSize: 15, fontWeight: "700",
   },

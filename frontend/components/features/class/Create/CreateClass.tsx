@@ -3,13 +3,17 @@ import Input from "@/components/UI/Input/Input";
 import Modal from "@/components/UI/Modal/Modal";
 import PickImage from "@/components/UI/PickImage/PickImage";
 import { ClassOfGrading } from "@/realm/models";
-import { createClass } from "@/tools/classService";
+import { createClass } from "@/services/CRUD/class/class.client";
 import { useRealm } from "@realm/react";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { StyleSheet, Text, View } from "react-native";
-
-
+import {
+  Keyboard,
+  StyleSheet,
+  Text,
+  TouchableWithoutFeedback,
+  View
+} from "react-native";
 
 interface CreateClassProps {
   visible: boolean;
@@ -22,10 +26,9 @@ const CreateClass: React.FC<CreateClassProps> = ({ visible, onClose, onCreated }
   const [photo, setPhoto] = useState<string | undefined>(undefined);
   const [priority, setPriority] = useState("1");
   const realm = useRealm();
-
   const [ready, setReady] = useState(false);
+  const { t } = useTranslation();
 
-  const {t, i18n} = useTranslation()
   useEffect(() => {
     if (visible) {
       const timer = setTimeout(() => setReady(true), 100); 
@@ -35,52 +38,53 @@ const CreateClass: React.FC<CreateClassProps> = ({ visible, onClose, onCreated }
     }
   }, [visible]);
 
-
-
   return (
-    
     <Modal visible={visible} onClose={onClose}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.innerContainer}>
+            <Text style={styles.title}>{t('class.create_new')}</Text>
 
-          <Text style={styles.title}>{t('class.create_new')}</Text>
+            <Input
+              placeholder={t('class.name_placeholder')}
+              value={name}
+              onChangeText={setName}
+              placeholderTextColor="#aaa"
+              autoCapitalize="none"
+            />
 
-          <Input
-            placeholder={t('class.name_placeholder')}
-            value={name}
-            onChangeText={setName}
-            placeholderTextColor="#aaa"
-            autoCapitalize="none"
-          />
+            <Input
+              placeholder={t('class.priority_placeholder')}
+              value={priority}
+              onChangeText={setPriority}
+              keyboardType="numeric"
+              placeholderTextColor="#aaa"
+            />
+            
+            <PickImage photo={photo} onChange={setPhoto} />
 
-          <Input
-            placeholder={t('class.priority_placeholder')}
-            value={priority}
-            onChangeText={setPriority}
-            keyboardType="numeric"
-            placeholderTextColor="#aaa"
-          />
-          <PickImage photo={photo} onChange={setPhoto} />
-
-
-          <View style={styles.buttons} >
-          <Button onPress={onClose}  title={t('common.cancel')} disabled={!ready}/>
-
-          <Button title={t('common.create')} disabled={!ready} onPress={async () => {
-              await createClass({ realm, name, photo, priority });
-
-              setName("");
-              setPriority("1");
-              setPhoto(undefined);
-              onClose();
-            }}/>
-
+            <View style={styles.buttons}>
+              <Button onPress={onClose} title={t('common.cancel')} disabled={!ready}/>
+              <Button 
+                title={t('common.create')} 
+                disabled={!ready} 
+                onPress={async () => {
+                  await createClass({ realm, name, photo, priority });
+                  setName("");
+                  setPriority("1");
+                  setPhoto(undefined);
+                  onClose();
+                }}
+              />
+            </View>
           </View>
-
+        </TouchableWithoutFeedback>
     </Modal>
-
   );
 };
 
 export default CreateClass;
+
+
 
 const styles = StyleSheet.create({
   overlay: {
@@ -100,6 +104,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 10,
   },
+
   title: {
     fontSize: 20,
     fontWeight: "700",
@@ -145,8 +150,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
+  innerContainer: {
+    width: "100%", 
+  },
+
   
 });
-
-
-

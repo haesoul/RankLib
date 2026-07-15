@@ -1,7 +1,3 @@
-/**
- * app/BatchGrading/[id].tsx
- * Экран сравнительной оценки — expo-router route
- */
 
 import { RankInput } from "@/components/UI/Input/RankInput";
 import { SelectorItem, SelectorModal } from "@/components/UI/Modal/SelectorModal";
@@ -11,9 +7,10 @@ import { writeCategoryRank, writeSubcategoryRank } from "@/tools/categoryService
 import { GradeMode, getObjectRank, sortObjectsByRank } from "@/tools/rankUtils";
 import { useObject, useRealm } from "@realm/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FlatList,
+  KeyboardAvoidingView,
   Platform,
   StyleSheet,
   Text,
@@ -58,7 +55,10 @@ export default function BatchGradingPage() {
     () => subcategories.find((s) => s._id.toHexString() === subcategoryId),
     [subcategories, subcategoryId]
   );
-
+useEffect(() => {
+    console.log("mounted");
+    return () => console.log("unmounted");
+}, []);
   const handleSelectCategory = useCallback((id: string) => {
     setCategoryId(id);
     setMode("category");
@@ -104,112 +104,113 @@ export default function BatchGradingPage() {
 
   return (
     <SafeAreaView style={s.container}>
-      <View style={s.header}>
-        <View style={s.headerTop}>
-          <View style={{ flex: 1, marginRight: 12 }}>
-            <Text style={s.classLabel} numberOfLines={1}>{classOfGrading.name}</Text>
-            <Text style={s.statsText}>{gradedCount}/{sortedObjects.length} оценено</Text>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={s.header}>
+          <View style={s.headerTop}>
+            <View style={{ flex: 1, marginRight: 12 }}>
+              <Text style={s.classLabel} numberOfLines={1}>{classOfGrading.name}</Text>
+              <Text style={s.statsText}>{gradedCount}/{sortedObjects.length} оценено</Text>
+            </View>
+            <TouchableOpacity style={s.closeBtn} onPress={() => router.back()}>
+              <Text style={s.closeBtnText}>✕</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={s.closeBtn} onPress={() => router.back()}>
-            <Text style={s.closeBtnText}>✕</Text>
-          </TouchableOpacity>
-        </View>
 
-        {/* Mode tabs */}
-        <View style={s.tabs}>
-          {(["category", "subcategory"] as GradeMode[]).map((m) => {
-            const disabled = m === "subcategory" && subcategories.length === 0;
-            return (
-              <TouchableOpacity
-                key={m}
-                style={[s.tab, mode === m && s.tabActive, disabled && s.tabDisabled]}
-                onPress={() => !disabled && setMode(m)}
-                activeOpacity={disabled ? 1 : 0.7}
-              >
-                <Text style={[s.tabText, mode === m && s.tabTextActive, disabled && s.tabTextDisabled]}>
-                  {m === "category" ? "Категория" : "Подкатегория"}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+          <View style={s.tabs}>
+            {(["category", "subcategory"] as GradeMode[]).map((m) => {
+              const disabled = m === "subcategory" && subcategories.length === 0;
+              return (
+                <TouchableOpacity
+                  key={m}
+                  style={[s.tab, mode === m && s.tabActive, disabled && s.tabDisabled]}
+                  onPress={() => !disabled && setMode(m)}
+                  activeOpacity={disabled ? 1 : 0.7}
+                >
+                  <Text style={[s.tabText, mode === m && s.tabTextActive, disabled && s.tabTextDisabled]}>
+                    {m === "category" ? "Категория" : "Подкатегория"}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
-        {/* Selectors */}
-        <View style={s.selectorRow}>
-          <TouchableOpacity style={s.chip} onPress={() => setCatModal(true)} activeOpacity={0.7}>
-            <Text style={s.chipLabel}>Категория</Text>
-            <Text style={s.chipValue} numberOfLines={1}>{selectedCategory?.name ?? "—"}</Text>
-            <Text style={s.chipArrow}>›</Text>
-          </TouchableOpacity>
-          {mode === "subcategory" && (
-            <TouchableOpacity style={[s.chip, s.chipAccent]} onPress={() => setSubModal(true)} activeOpacity={0.7}>
-              <Text style={s.chipLabel}>Подкатегория</Text>
-              <Text style={s.chipValue} numberOfLines={1}>{selectedSubcategory?.name ?? "—"}</Text>
+          <View style={s.selectorRow}>
+            <TouchableOpacity style={s.chip} onPress={() => setCatModal(true)} activeOpacity={0.7}>
+              <Text style={s.chipLabel}>Категория</Text>
+              <Text style={s.chipValue} numberOfLines={1}>{selectedCategory?.name ?? "—"}</Text>
               <Text style={s.chipArrow}>›</Text>
             </TouchableOpacity>
-          )}
-        </View>
-        <View style={s.divider} />
-      </View>
-
-      {/* Column header */}
-      <View style={s.colHeader}>
-        <Text style={[s.colText, { width: 32, textAlign: "center" }]}>#</Text>
-        <Text style={[s.colText, { flex: 1, marginLeft: 10 }]}>Объект</Text>
-        <Text style={[s.colText, { width: 72, textAlign: "center" }]}>Оценка</Text>
-      </View>
-
-      {/* List */}
-      <FlatList
-        data={sortedObjects}
-        keyExtractor={(o) => o._id.toHexString()}
-        contentContainerStyle={s.listContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        ItemSeparatorComponent={() => <View style={s.rowSep} />}
-        ListEmptyComponent={
-          <View style={s.empty}>
-            <Text style={{ fontSize: 40 }}>📋</Text>
-            <Text style={s.emptyText}>Нет объектов в классе</Text>
+            {mode === "subcategory" && (
+              <TouchableOpacity style={[s.chip, s.chipAccent]} onPress={() => setSubModal(true)} activeOpacity={0.7}>
+                <Text style={s.chipLabel}>Подкатегория</Text>
+                <Text style={s.chipValue} numberOfLines={1}>{selectedSubcategory?.name ?? "—"}</Text>
+                <Text style={s.chipArrow}>›</Text>
+              </TouchableOpacity>
+            )}
           </View>
-        }
-        renderItem={({ item: obj, index }) => {
-          const rank = getObjectRank(obj, mode, categoryId, subcategoryId);
-          const isTop3 = index < 3 && rank != null;
-          const barColor = require("@/tools/rankUtils").getRankColor(rank);
-          return (
-            <View style={[s.row, isTop3 && s.rowHighlighted]}>
-              <View style={s.posBadge}>
-                <Text style={[
-                  s.posText,
-                  index === 0 && { color: "#FFD700" },
-                  index === 1 && { color: "#C0C0C0" },
-                  index === 2 && { color: "#CD7F32" },
-                ]}>
-                  {index + 1}
-                </Text>
-              </View>
-              <View style={[s.accentBar, { backgroundColor: barColor + "80" }]} />
-              <View style={s.nameContainer}>
-                <Text style={s.objName} numberOfLines={2}>{obj.name}</Text>
-                {obj.object_name && <Text style={s.objSubname} numberOfLines={1}>{obj.object_name}</Text>}
-              </View>
-              <RankInput value={rank} onChange={(v) => handleRankChange(obj, v)} />
-            </View>
-          );
-        }}
-      />
+          <View style={s.divider} />
+        </View>
 
-      <SelectorModal
-        visible={catModal} title="Выбери категорию"
-        items={catItems} selectedId={categoryId}
-        onSelect={handleSelectCategory} onClose={() => setCatModal(false)}
-      />
-      <SelectorModal
-        visible={subModal} title="Выбери подкатегорию"
-        items={subItems} selectedId={subcategoryId}
-        onSelect={setSubcategoryId} onClose={() => setSubModal(false)}
-      />
+        <View style={s.colHeader}>
+          <Text style={[s.colText, { width: 32, textAlign: "center" }]}>#</Text>
+          <Text style={[s.colText, { flex: 1, marginLeft: 10 }]}>Объект</Text>
+          <Text style={[s.colText, { width: 72, textAlign: "center" }]}>Оценка</Text>
+        </View>
+
+        <FlatList
+          data={sortedObjects}
+          keyExtractor={(o) => o._id.toHexString()}
+          contentContainerStyle={s.listContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          ItemSeparatorComponent={() => <View style={s.rowSep} />}
+          ListEmptyComponent={
+            <View style={s.empty}>
+              <Text style={{ fontSize: 40 }}>📋</Text>
+              <Text style={s.emptyText}>Нет объектов в классе</Text>
+            </View>
+          }
+          renderItem={({ item: obj, index }) => {
+            const rank = getObjectRank(obj, mode, categoryId, subcategoryId);
+            const isTop3 = index < 3 && rank != null;
+            const barColor = require("@/tools/rankUtils").getRankColor(rank);
+            return (
+              <View style={[s.row, isTop3 && s.rowHighlighted]}>
+                <View style={s.posBadge}>
+                  <Text style={[
+                    s.posText,
+                    index === 0 && { color: "#FFD700" },
+                    index === 1 && { color: "#C0C0C0" },
+                    index === 2 && { color: "#CD7F32" },
+                  ]}>
+                    {index + 1}
+                  </Text>
+                </View>
+                <View style={[s.accentBar, { backgroundColor: barColor + "80" }]} />
+                <View style={s.nameContainer}>
+                  <Text style={s.objName} numberOfLines={2}>{obj.name}</Text>
+                  {obj.object_name && <Text style={s.objSubname} numberOfLines={1}>{obj.object_name}</Text>}
+                </View>
+                <RankInput value={rank} onChange={(v) => handleRankChange(obj, v)} />
+              </View>
+            );
+          }}
+        />
+
+        <SelectorModal
+          visible={catModal} title="Выбери категорию"
+          items={catItems} selectedId={categoryId}
+          onSelect={handleSelectCategory} onClose={() => setCatModal(false)}
+        />
+        <SelectorModal
+          visible={subModal} title="Выбери подкатегорию"
+          items={subItems} selectedId={subcategoryId}
+          onSelect={setSubcategoryId} onClose={() => setSubModal(false)}
+        />
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

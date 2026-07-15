@@ -57,7 +57,8 @@ export default {
         backgroundColor: "#000000"
       },
       edgeToEdgeEnabled: true,
-      package: getUniqueIdentifier()
+      package: getUniqueIdentifier(),
+      softwareKeyboardLayoutMode: "pan"
     },
     web: {
       bundler: "metro",

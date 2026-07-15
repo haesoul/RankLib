@@ -20,29 +20,28 @@ type ObjectCardProps = {
   topNumber?: number;
   type?: 2 | 3;
   isSelected?: boolean;
+  isMultiSelectMode?: boolean;
 };
 
-const ObjectCard: React.FC<ObjectCardProps> = React.memo(({ item, onPress, onLongPress, index, topNumber, type = 2, isSelected = false }) => {
+const ObjectCard: React.FC<ObjectCardProps> = React.memo(({ 
+  item, onPress, onLongPress, index, topNumber, type = 2, isSelected = false, isMultiSelectMode = false 
+}) => {
   const scale = React.useRef(new Animated.Value(1)).current;
   const opacity = React.useRef(new Animated.Value(0)).current;
-
   const animatedIn = React.useRef(false);
 
-  const screenPadding = type === 2 ? 18: 13.5;
-  const gap = type === 2 ? 12: 5;
+  const screenPadding = type === 2 ? 18 : 13.5;
+  const gap = type === 2 ? 12 : 5;
   const numColumns = type; 
 
   const CARD_WIDTH = (width - (screenPadding * 2) - (gap * (numColumns - 1))) / numColumns;
-
 
   useEffect(() => {
     if (animatedIn.current) {
       opacity.setValue(1);
       return;
     }
-
     animatedIn.current = true;
-    
     const appearanceDelay = index < 20 ? Math.min(index * 50, 1000) : 0;
 
     Animated.timing(opacity, {
@@ -52,33 +51,16 @@ const ObjectCard: React.FC<ObjectCardProps> = React.memo(({ item, onPress, onLon
       useNativeDriver: true,
     }).start();
   }, []);
-  // useEffect(() => {
-  //   Animated.timing(opacity, {
-  //     toValue: 1,
-  //     duration: 400,
-  //     delay: Math.min(index * 100, 600),
-  //     useNativeDriver: true,
-  //   }).start();
-  // }, []);
 
   const handlePressIn = () => {
-    Animated.spring(scale, {
-      toValue: 0.96,
-      useNativeDriver: true,
-    }).start();
+    Animated.spring(scale, { toValue: 0.96, useNativeDriver: true }).start();
   };
 
   const handlePressOut = () => {
-    Animated.spring(scale, {
-      toValue: 1,
-      friction: 3,
-      tension: 40,
-      useNativeDriver: true,
-    }).start();
+    Animated.spring(scale, { toValue: 1, friction: 3, tension: 40, useNativeDriver: true }).start();
   };
-    const imageUri = item.photo
-    ? `${item.photo}?v=${Date.now()}`
-    : "https://placekitten.com/200/200";
+
+  const imageUri = item.photo ? `${item.photo}?v=${Date.now()}` : "https://placekitten.com/200/200";
 
   return (
     <Animated.View style={{ 
@@ -96,29 +78,24 @@ const ObjectCard: React.FC<ObjectCardProps> = React.memo(({ item, onPress, onLon
         style={[styles.card, {
           width: CARD_WIDTH, 
           marginBottom: type === 3 ? 5 : 15,
-          aspectRatio: type === 3? 8 / 12 :6 / 8,
+          aspectRatio: type === 3 ? 8 / 12 : 6 / 8,
           borderWidth: isSelected ? 2 : 0, 
           borderColor: isSelected ? '#FFD700' : 'transparent',
-        }
-      ]}
+        }]}
       >
         <Image
-          source={{ 
-            uri: imageUri,
-          }}
+          source={{ uri: imageUri }}
           fadeDuration={0}
-          style={[styles.image, 
-            {width: type === 2 ? '100%' : '110%'}
-          ]}
+          style={[styles.image, { width: type === 2 ? '100%' : '110%' }]}
           resizeMode="cover"
         />
-        <Text numberOfLines={2} style={[styles.title, {fontSize: type === 2 ? 15 : 12}]}>
+        <Text numberOfLines={2} style={[styles.title, { fontSize: type === 2 ? 15 : 12 }]}>
           {item.name}
         </Text>
-        <View style={{flexDirection: "row"}}>
+        <View style={{ flexDirection: "row" }}>
           {topNumber !== undefined && topNumber > 0 && topNumber < 11 && (
             <View style={[styles.ribbon, type === 3 && styles.ribbonType3]}>
-              <Text style={[styles.ribbonText, {fontSize: type === 3 ? 10 : undefined}]}>{topNumber}</Text>
+              <Text style={[styles.ribbonText, { fontSize: type === 3 ? 10 : undefined }]}>{topNumber}</Text>
             </View>
           )}
           <Text style={[styles.rank, type === 3 && styles.rankType3]}>
@@ -127,12 +104,16 @@ const ObjectCard: React.FC<ObjectCardProps> = React.memo(({ item, onPress, onLon
         </View>
       </Pressable>
     </Animated.View>
-    
   );
 }, (prev, next) => {
-  return prev.item._id.equals(next.item._id) && prev.isSelected === next.isSelected && prev.index === next.index;
+  return prev.item._id.equals(next.item._id) && 
+         prev.isSelected === next.isSelected && 
+         prev.index === next.index &&
+         prev.isMultiSelectMode === next.isMultiSelectMode;
 });
 
+
+export default ObjectCard;
 const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surfaceDarker,
@@ -205,4 +186,3 @@ const styles = StyleSheet.create({
 
 });
 
-export default ObjectCard;

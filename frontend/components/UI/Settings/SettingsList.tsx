@@ -10,6 +10,7 @@ export interface SettingsItem {
   title: string;
   subtitle?: string;
   icon?: IconName;
+  iconsColor?: string;
   onPress: () => void;
   variant?: SettingsButtonVariant;
   disabled?: boolean;
@@ -33,6 +34,7 @@ export default function SettingsList({ items }: SettingsListProps) {
           variant={item.variant}
           disabled={item.disabled}
           rightElement={item?.rightElement}
+          iconsColor={item.iconsColor}
         />
       ))}
     </View>

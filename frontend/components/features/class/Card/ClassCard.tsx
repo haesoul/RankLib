@@ -14,19 +14,25 @@ import {
 type ClassCardProps = {
   item: ClassOfGrading;
   onPress: (item: ClassOfGrading) => void;
+  onLongPress: () => void;
   index: number;
+  isSelected: boolean;
+  isSelectMode: boolean;
 };
 
-const ClassCard: React.FC<ClassCardProps> = ({ item, onPress, index }) => {
+const ClassCard: React.FC<ClassCardProps> = ({ 
+  item, 
+  onPress, 
+  onLongPress, 
+  index, 
+  isSelected, 
+  isSelectMode 
+}) => {
   const scale = useRef(new Animated.Value(1)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const translateX = useRef(new Animated.Value(-20)).current;
 
-  useEffect(() => {
-    console.log(item.photo)
-  }, [])
   const { height: screenHeight } = useWindowDimensions();
-  
   const CARD_HEIGHT = screenHeight * 0.135;
 
   useEffect(() => {
@@ -53,13 +59,19 @@ const ClassCard: React.FC<ClassCardProps> = ({ item, onPress, index }) => {
   const handlePressOut = () => {
     Animated.spring(scale, { toValue: 1, friction: 3, useNativeDriver: true }).start();
   };
+
   return (
     <Animated.View style={{ opacity, transform: [{ scale }, { translateX }], height: CARD_HEIGHT }}>
       <Pressable
         onPress={() => onPress(item)}
+        onLongPress={onLongPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        style={[styles.container, {height: CARD_HEIGHT}]}
+        style={[
+          styles.container, 
+          { height: CARD_HEIGHT },
+          isSelected && styles.selectedContainer
+        ]}
       >
         <SmartImage
           source={{ uri: item.photo }}
@@ -68,8 +80,15 @@ const ClassCard: React.FC<ClassCardProps> = ({ item, onPress, index }) => {
         <View style={styles.info}>
           <Text style={styles.className}>{item.name}</Text>
         </View>
-        <View style={styles.arrowContainer}>
-           <Text style={styles.arrow}>〉</Text>
+
+        <View style={styles.rightActionContainer}>
+          {isSelectMode ? (
+            <View style={[styles.checkbox, isSelected && styles.checkboxChecked]}>
+              {isSelected && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+          ) : (
+            <Text style={styles.arrow}>〉</Text>
+          )}
         </View>
       </Pressable>
     </Animated.View>
@@ -90,6 +109,12 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 3,
     width: '100%',
+    borderWidth: 1.5,
+    borderColor: 'transparent', 
+  },
+  selectedContainer: {
+    borderColor: '#FF3B30', 
+    backgroundColor: '#1A0B0B', 
   },
   image: {
     height: '100%',
@@ -107,19 +132,34 @@ const styles = StyleSheet.create({
     color: "#F5F5F5",
     marginBottom: 4,
   },
-  subtitle: {
-    fontSize: 12,
-    color: "#666",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  arrowContainer: {
+  rightActionContainer: {
     paddingHorizontal: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   arrow: {
     color: "#333",
     fontSize: 18,
     fontWeight: "bold",
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: '#444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  checkboxChecked: {
+    backgroundColor: '#FF3B30',
+    borderColor: '#FF3B30',
+  },
+  checkmark: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '900',
   },
 });
 
