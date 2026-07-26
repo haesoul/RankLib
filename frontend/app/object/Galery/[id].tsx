@@ -4,11 +4,16 @@ import WarnModal from '@/components/UI/Modal/WarnModal';
 import VideoPlayer from '@/components/UI/Video/VideoPlayer';
 import { Colors } from '@/CONSTANTS';
 import { GradeObject } from '@/realm/models';
-import { addMedia, deleteSelectedMedia } from '@/tools/objectService';
+import { createMedia, deleteMedia } from '@/services/CRUD/gallery/gallery.client';
+import { deleteFiles } from '@/utils/deleteFiles';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useObject, useRealm } from '@realm/react';
 import Constants from 'expo-constants';
+import * as FileSystem from 'expo-file-system';
+import * as ImagePicker from 'expo-image-picker';
+import * as MediaLibrary from 'expo-media-library';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -18,21 +23,27 @@ import {
   Image,
   Modal as RNModal,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS, useSharedValue } from 'react-native-reanimated';
 import Realm from 'realm';
-
-import * as FileSystem from 'expo-file-system';
-import * as MediaLibrary from 'expo-media-library';
-import * as Sharing from 'expo-sharing';
-import { StatusBar } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
 const NUM_COLUMNS = 3;
 const ITEM_MARGIN = 3;
+
+function indexFromPoint(x: number, y: number, cols: number, colPitch: number, rowPitch: number): number {
+  'worklet';
+  if (colPitch <= 0 || rowPitch <= 0 || cols <= 0) return -1;
+  const col = Math.min(Math.max(Math.floor(x / colPitch), 0), cols - 1);
+  const row = Math.max(Math.floor(y / rowPitch), 0);
+  return row * cols + col;
+}
 
 export default function GalleryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -71,6 +82,75 @@ export default function GalleryScreen() {
   const [messageModalType, setMessageModalType] = useState<'success' | 'error'>('success');
   const [showHeader, setShowHeader] = useState(true);
 
+  const item0Ref = useRef<View>(null);
+  const item1Ref = useRef<View>(null);
+  const itemRowRef = useRef<View>(null);
+  const colPitch = useSharedValue(0);
+  const rowPitch = useSharedValue(0);
+  const scrollOffset = useSharedValue(0);
+  const dragAnchorIndex = useSharedValue(-1);
+  const lastDragIndex = useSharedValue(-1);
+  const dragBaseSelection = useRef<number[]>([]);
+
+  const measurePitches = () => {
+    if (item0Ref.current && item1Ref.current) {
+      item0Ref.current.measure((_x0, _y0, _w0, _h0, pageX0) => {
+        item1Ref.current?.measure((_x1, _y1, _w1, _h1, pageX1) => {
+          colPitch.value = Math.abs(pageX1 - pageX0);
+        });
+      });
+    }
+    if (item0Ref.current && itemRowRef.current) {
+      item0Ref.current.measure((_x0, _y0, _w0, _h0, _pageX0, pageY0) => {
+        itemRowRef.current?.measure((_x1, _y1, _w1, _h1, _pageX1, pageY1) => {
+          rowPitch.value = Math.abs(pageY1 - pageY0);
+        });
+      });
+    }
+  };
+
+  const applyDragRange = (anchorIndex: number, currentIndex: number) => {
+    if (!media.length || anchorIndex < 0) return;
+    const a = Math.min(anchorIndex, media.length - 1);
+    const c = Math.min(Math.max(currentIndex, 0), media.length - 1);
+    const from = Math.min(a, c);
+    const to = Math.max(a, c);
+
+    const rangeIndexes: number[] = [];
+    for (let i = from; i <= to; i++) rangeIndexes.push(i);
+
+    setSelectedIndexes(Array.from(new Set([...dragBaseSelection.current, ...rangeIndexes])));
+  };
+
+  const startDragSelection = (anchorIndex: number) => {
+    if (!media.length) return;
+    dragBaseSelection.current = selectedIndexes;
+    setIsMultiSelectMode(true);
+    setSelectedIndex(null);
+    applyDragRange(anchorIndex, anchorIndex);
+  };
+
+  const dragSelectGesture = Gesture.Pan()
+    .activateAfterLongPress(350)
+    .onStart((event) => {
+      const y = event.y + scrollOffset.value;
+      const idx = indexFromPoint(event.x, y, NUM_COLUMNS, colPitch.value, rowPitch.value);
+      dragAnchorIndex.value = idx;
+      lastDragIndex.value = idx;
+      runOnJS(startDragSelection)(idx);
+    })
+    .onUpdate((event) => {
+      if (dragAnchorIndex.value < 0) return;
+      const y = event.y + scrollOffset.value;
+      const idx = indexFromPoint(event.x, y, NUM_COLUMNS, colPitch.value, rowPitch.value);
+      if (idx === lastDragIndex.value) return;
+      lastDragIndex.value = idx;
+      runOnJS(applyDragRange)(dragAnchorIndex.value, idx);
+    })
+    .onEnd(() => {
+      dragAnchorIndex.value = -1;
+      lastDragIndex.value = -1;
+    });
   const toggleSelectIndex = (index: number) => {
     setSelectedIndexes(prev => {
       if (prev.includes(index)) return prev.filter(i => i !== index);
@@ -89,6 +169,26 @@ export default function GalleryScreen() {
   const isVideo = (it: any) =>
     it?.mediaType === 'video' || (typeof it?.uri === 'string' && /\.(mp4|mov|mkv|webm|m4v)(\?.*)?$/i.test(it.uri));
 
+  const handleAddMedia = async () => {
+    if (!obj) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsEditing: false,
+      quality: 1,
+      allowsMultipleSelection: true,
+    });
+    if (result.canceled || !result.assets?.length) return;
+
+    await createMedia({
+      realm,
+      obj,
+      items: result.assets.map((asset) => ({
+        uri: asset.uri,
+        mediaType: asset.type,
+        mimeType: asset.mimeType,
+      })),
+    });
+  };
   const handleShare = async () => {
     if (visibleIndex === null || !media[visibleIndex]) return;
     const currentMedia = media[visibleIndex];
@@ -115,9 +215,10 @@ export default function GalleryScreen() {
   const handleDownload = async () => {
     if (visibleIndex === null || !media[visibleIndex]) return;
     const currentMedia = media[visibleIndex];
-    
+    let fileUri: string | undefined;
     try {
       const { status } = await MediaLibrary.requestPermissionsAsync();
+      
       if (status !== 'granted') {
         Alert.alert(t('error', 'Внимание'), t('permission_needed', 'Дай доступ к галерее, иначе как я сохраню?!'));
         return;
@@ -125,7 +226,8 @@ export default function GalleryScreen() {
 
       let uriToSave = currentMedia.uri;
       if (uriToSave.startsWith('http')) {
-        const fileUri = FileSystem.documentDirectory + `download_${Date.now()}.jpg`;
+        fileUri = FileSystem.documentDirectory + `download_${Date.now()}.jpg`;
+
         const { uri } = await FileSystem.downloadAsync(uriToSave, fileUri);
         uriToSave = uri;
       }
@@ -138,47 +240,59 @@ export default function GalleryScreen() {
     } catch (e) {
       console.log(e);
       Alert.alert(t('error', 'Ошибка'), t('save_failed', 'Не удалось сохранить фото'));
+    } finally {
+      if (fileUri) {
+        await deleteFiles(fileUri);
+      }
     }
   };
 
   const renderGridItem = ({ item, index }: { item: any; index: number }) => {
     const uri = item.thumbnailUri || item.uri;
     const isSelected = selectedIndexes.includes(index);
-    return (
-      <TouchableOpacity
-        activeOpacity={0.85}
-        style={[styles.tile, { width: tileSize, height: tileSize }]}
-        onPress={() => {
-          !isMultiSelectMode && setSelectedIndex(index);
-          isMultiSelectMode && toggleSelectIndex(index);
-        }}
-        onLongPress={() => {
-          setSelectedIndex(null);
-          setIsMultiSelectMode(true);
-          toggleSelectIndex(index);
-        }}
-      >
-        {uri ? (
-          <Image source={{ uri }} style={styles.image} resizeMode="cover" />
-        ) : (
-          <View style={[styles.image, styles.placeholder]}>
-            <MaterialIcons name="insert-photo" size={28} color="#555" />
-          </View>
-        )}
 
-        {isVideo(item) && (
-          <View style={styles.playOverlay}>
-            <MaterialIcons name="play-circle-outline" size={36} color="#fff" />
-          </View>
-        )}
-        {isSelected && (
-          <View style={styles.selectionOverlay} pointerEvents="none">
-            <View style={styles.selectionBadge}>
-              <Text style={styles.selectionText}>{selectedIndexes.indexOf(index) + 1}</Text>
+    const measureRef =
+      index === 0 ? item0Ref :
+      index === 1 ? item1Ref :
+      index === NUM_COLUMNS ? itemRowRef :
+      undefined;
+
+    return (
+      <View ref={measureRef} onLayout={measureRef ? measurePitches : undefined} collapsable={false}>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={[styles.tile, { width: tileSize, height: tileSize }]}
+          onPress={() => {
+            !isMultiSelectMode && setSelectedIndex(index);
+            isMultiSelectMode && toggleSelectIndex(index);
+          }}
+          onLongPress={() => {
+            setSelectedIndex(null);
+            setIsMultiSelectMode(true);
+            toggleSelectIndex(index);
+          }}
+        >
+          {uri ? (
+            <Image source={{ uri }} style={styles.image} resizeMode="cover" />
+          ) : (
+            <View style={[styles.image, styles.placeholder]}>
+              <MaterialIcons name="insert-photo" size={28} color="#555" />
             </View>
-          </View>
-        )}
-      </TouchableOpacity>
+          )}
+          {isVideo(item) && (
+            <View style={styles.playOverlay}>
+              <MaterialIcons name="play-circle-outline" size={36} color="#fff" />
+            </View>
+          )}
+          {isSelected && (
+            <View style={styles.selectionOverlay} pointerEvents="none">
+              <View style={styles.selectionBadge}>
+                <Text style={styles.selectionText}>{selectedIndexes.indexOf(index) + 1}</Text>
+              </View>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -252,7 +366,7 @@ export default function GalleryScreen() {
             </>
           ) : (
             <>
-              <TouchableOpacity onPress={() => addMedia({ realm, obj })} style={{width: 50, paddingHorizontal: 0, left: 45}}>
+              <TouchableOpacity onPress={handleAddMedia} style={{width: 50, paddingHorizontal: 0, left: 45}}>
                 <MaterialIcons name="add" size={24} color="#fff" />
               </TouchableOpacity>
               <View style={styles.headerRight} />
@@ -260,22 +374,28 @@ export default function GalleryScreen() {
           )}
         </View>
 
-        <FlatList
-          ref={gridFlatRef}
-          data={obj.media}
-          extraData={obj.media?.length}
-          renderItem={renderGridItem}
-          keyExtractor={keyExtractor}
-          numColumns={NUM_COLUMNS}
-          contentContainerStyle={styles.listContainer}
-          ListEmptyComponent={
-            <View style={styles.center}>
-              <Text style={styles.emptyText}>{t('gallery.empty_text')}</Text>
-            </View>
-          }
-          removeClippedSubviews={true}
-          windowSize={9}
-        />
+        <GestureDetector gesture={dragSelectGesture}>
+          <View style={{ flex: 1 }}>
+            <FlatList
+              ref={gridFlatRef}
+              data={obj.media}
+              extraData={obj.media?.length}
+              renderItem={renderGridItem}
+              keyExtractor={keyExtractor}
+              numColumns={NUM_COLUMNS}
+              contentContainerStyle={styles.listContainer}
+              onScroll={(e) => { scrollOffset.value = e.nativeEvent.contentOffset.y; }}
+              scrollEventThrottle={16}
+              ListEmptyComponent={
+                <View style={styles.center}>
+                  <Text style={styles.emptyText}>{t('gallery.empty_text')}</Text>
+                </View>
+              }
+              removeClippedSubviews={true}
+              windowSize={9}
+            />
+          </View>
+        </GestureDetector>
 
         <RNModal 
           visible={selectedIndex !== null} 
@@ -335,17 +455,14 @@ export default function GalleryScreen() {
           }}
           rightOption={{
             label: t('common.delete'),
-            onPress: () => {
-              deleteSelectedMedia({
-                realm, 
-                obj,
-                media, 
-                selectedIndexes, 
-                setSelectedIndexes, 
-                setSelectedIndex, 
-                setIsMultiSelectMode, 
-                setVisibleIndex 
-              })
+            onPress: async () => {
+              const itemsToDelete = selectedIndexes.map((i) => media[i]).filter(Boolean);
+              await deleteMedia(realm, obj, itemsToDelete);
+              setSelectedIndexes([]);
+              setIsMultiSelectMode(false);
+              setSelectedIndex(null);
+              setVisibleIndex(0);
+              setDeleteMediaModal(false);
             },
             destructive: true
           }}

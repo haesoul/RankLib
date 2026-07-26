@@ -60,7 +60,8 @@ const ObjectCard: React.FC<ObjectCardProps> = React.memo(({
     Animated.spring(scale, { toValue: 1, friction: 3, tension: 40, useNativeDriver: true }).start();
   };
 
-  const imageUri = item.photo ? `${item.photo}?v=${Date.now()}` : "https://placekitten.com/200/200";
+  // const imageUri = item.photo ? `${item.photo}?v=${Date.now()}` : "https://placekitten.com/200/200";
+  const imageUri = item.photo ?? "https://placekitten.com/200/200";
 
   return (
     <Animated.View style={{ 

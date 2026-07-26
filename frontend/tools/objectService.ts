@@ -1,6 +1,4 @@
-import { Category, ClassOfGrading, GradeObject, MediaItem, Tag } from "@/realm/models";
-import * as FileSystem from "expo-file-system";
-import * as ImagePicker from 'expo-image-picker';
+import { Category, ClassOfGrading, GradeObject, Tag } from "@/realm/models";
 import Realm from "realm";
 import { recomputeLeaderboard } from "./categoryService";
 
@@ -44,60 +42,6 @@ export function debouncedRecomputeLeaderboard(
 }
 
 
-
-interface AppendMedia {
-  realm: Realm;
-  obj?: GradeObject | null;
-}
-
-
-export const addMedia = async ({ realm, obj }: AppendMedia) => {
-  if (!obj) return;
-
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-    allowsEditing: false,
-    quality: 1,
-    allowsMultipleSelection: true,
-  });
-
-  if (result.canceled || !result.assets?.length) return;
-
-  const assets = result.assets;
-  const savedItems: MediaItem[] = [];
-
-  try {
-
-    await Promise.all(
-      assets.map(async (asset) => {
-        if (!asset.uri) return;
-
-        const ext = asset.uri.split('.').pop() ?? 'mp4';
-        const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        const destPath = FileSystem.documentDirectory + fileName;
-
-        await FileSystem.copyAsync({ from: asset.uri, to: destPath });
-
-        const mediaData = {
-          uri: destPath,
-          mediaType: asset.type ?? 'video',
-          createdAt: new Date(),
-          mimeType: asset.mimeType ?? undefined,
-          caption: undefined,
-          thumbnailUri: destPath,
-        } as unknown as MediaItem;
-
-        savedItems.push(mediaData);
-      })
-    );
-
-    realm.write(() => {
-      savedItems.forEach((item) => obj.media.push(item));
-    });
-  } catch (error) {
-    console.error('Error saving media:', error);
-  }
-};
 
 
 
@@ -151,65 +95,4 @@ export function toggleObjectTagsService(
     return false;
   }
 }
-
-interface deleteMediaProps {
-  realm: Realm;
-  obj: (GradeObject & Realm.Object<GradeObject, never>) | null
-  media: any[];
-  selectedIndexes: any[];
-  setSelectedIndexes: (m: any[]) => void;
-  setSelectedIndex: (n: number | null) => void;
-  setIsMultiSelectMode: (set: boolean) => void;
-  
-  setVisibleIndex: (n: number) => void;
-}
-
-export const deleteSelectedMedia = ({realm, obj, media, selectedIndexes, setSelectedIndexes, setSelectedIndex, setIsMultiSelectMode, setVisibleIndex} : deleteMediaProps) => {
-  if (!obj || !realm) return;
-  if (!selectedIndexes || selectedIndexes.length === 0) return;
-
-  const toDeleteIndexes = [...selectedIndexes].sort((a, b) => b - a); 
-  try {
-    realm.write(() => {
-      for (const idx of toDeleteIndexes) {
-        const item = media[idx];
-        if (!item) continue;
-
-        try {
-          realm.delete(item);
-          continue;
-        } catch (e) {
-        }
-
-        const listIndex = typeof obj.media.indexOf === 'function' ? obj.media.indexOf(item) : -1;
-        if (listIndex >= 0 && typeof obj.media.splice === 'function') {
-          obj.media.splice(listIndex, 1);
-          continue;
-        }
-
-        const uri = item?.uri;
-        if (uri) {
-          const found = obj.media.findIndex((m: any) => m?.uri === uri);
-          if (found >= 0 && typeof obj.media.splice === 'function') obj.media.splice(found, 1);
-        }
-      }
-    });
-  } catch (err) {
-    console.error('deleteSelectedMedia error', err);
-  }
-
-  setSelectedIndexes([]);
-  setIsMultiSelectMode(false);
-  setSelectedIndex(null);
-  setVisibleIndex(0);
-};
-
-
-
-
-
-
-
-
-
 

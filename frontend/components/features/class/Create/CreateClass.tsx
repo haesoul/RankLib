@@ -68,7 +68,7 @@ const CreateClass: React.FC<CreateClassProps> = ({ visible, onClose, onCreated }
                 title={t('common.create')} 
                 disabled={!ready} 
                 onPress={async () => {
-                  await createClass({ realm, name, photo, priority });
+                  await createClass({ realm, items: [{ name, photo, priority }] });
                   setName("");
                   setPriority("1");
                   setPhoto(undefined);

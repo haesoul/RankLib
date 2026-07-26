@@ -83,9 +83,11 @@ const WarnModal: React.FC<WarnModalProps> = ({
               onChangeText={setText}
               keyboardType="number-pad"
               maxLength={6}
-              placeholder="••••••"
+              // placeholder="••••••"
+              placeholder=""
               placeholderTextColor="#666"
-              style={styles.captchaInput}
+              containerStyle={styles.captchaInput}
+              inputStyle={{ textAlign: 'center' }}
             />
           </View>
         )}
@@ -195,7 +197,7 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   captchaInput: {
-    width: '100%',
+    width: '75%',
     textAlign: 'center',
     fontSize: 18,
     backgroundColor: '#121212',

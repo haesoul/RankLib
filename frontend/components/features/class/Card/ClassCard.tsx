@@ -1,9 +1,9 @@
-import { SmartImage } from '@/components/Basic/SmartImage/SmartImage';
 import { Colors } from '@/CONSTANTS';
 import { ClassOfGrading } from '@/realm/models';
 import React, { useEffect, useRef } from 'react';
 import {
   Animated,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -34,6 +34,7 @@ const ClassCard: React.FC<ClassCardProps> = ({
 
   const { height: screenHeight } = useWindowDimensions();
   const CARD_HEIGHT = screenHeight * 0.135;
+
 
   useEffect(() => {
     Animated.parallel([
@@ -73,7 +74,7 @@ const ClassCard: React.FC<ClassCardProps> = ({
           isSelected && styles.selectedContainer
         ]}
       >
-        <SmartImage
+        <Image
           source={{ uri: item.photo }}
           style={styles.image}
         />

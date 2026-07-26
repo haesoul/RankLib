@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useObject, useRealm } from '@realm/react';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
   FlatList,
@@ -25,6 +25,8 @@ import CustomModal from '@/components/UI/Modal/Modal';
 import WarnModal from '@/components/UI/Modal/WarnModal';
 import PickImage from '@/components/UI/PickImage/PickImage';
 import { Colors } from '@/CONSTANTS';
+import { Note } from '@/realm/models';
+import { createNote, deleteNote, updateNote } from '@/services/CRUD/notes/notes.client';
 import { useTranslation } from 'react-i18next';
 
 if (
@@ -46,13 +48,13 @@ const THEME = {
 };
 
 
-interface NoteRealm {
-  text: string;
-  pinned: boolean;
-  createdAt: Date;
-  photoUri?: string | null;
-  isValid: () => boolean;
-}
+// interface NoteRealm {
+//   text: string;
+//   pinned: boolean;
+//   createdAt: Date;
+//   photoUri?: string | null;
+//   isValid: () => boolean;
+// }
 
 
 
@@ -70,8 +72,8 @@ const NoteCard = React.memo(
     item,
     onPress,
   }: {
-    item: NoteRealm;
-    onPress: (note: NoteRealm) => void;
+    item: Note;
+    onPress: (note: Note) => void;
   }) => {
     const {t, i18n} = useTranslation()
     return (
@@ -104,7 +106,8 @@ const GradeObjectNotesScreen: React.FC = () => {
   const { id } = useLocalSearchParams<{ id: string }>();
   const realm = useRealm();
   
-  const [selectedNote, setSelectedNote] = useState<NoteRealm | null>(null);
+  const router = useRouter();
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [isDetailVisible, setIsDetailVisible] = useState(false);
   const [isCreateVisible, setIsCreateVisible] = useState(false);
   
@@ -131,56 +134,52 @@ const GradeObjectNotesScreen: React.FC = () => {
   }, [gradeObject?.notes]);
 
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!realm || !gradeObject) return;
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     
-    realm.write(() => {
-      gradeObject.notes.push({
-        text: newText,
-        photoUri: newPhoto,
-        createdAt: new Date(),
-        pinned: false,
-      });
-    });
+    await createNote(realm, gradeObject, newText, newPhoto);
+    
     setNewText('');
     setNewPhoto(null);
     setIsCreateVisible(false);
   };
 
-  const handleSaveEdit = () => {
-    if (!selectedNote || !realm) return;
+  const handleSaveEdit = async () => {
+    if (!selectedNote || !realm || !gradeObject) return;
     
-    realm.write(() => {
-      selectedNote.text = editText;
-      selectedNote.photoUri = editPhoto;
+    await updateNote(realm, gradeObject, selectedNote, {
+      text: editText,
+      photo: editPhoto 
     });
     
     setIsEditing(false);
   };
 
   const handleDelete = () => {
-    if (!selectedNote || !realm) return;
+    if (!selectedNote || !realm || !gradeObject) return;
 
     setIsDetailVisible(false);
-    setTimeout(() => {
+    router.back();
+    setTimeout(async () => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
-      realm.write(() => {
-          realm.delete(selectedNote);
-      });
+      
+      await deleteNote(realm, selectedNote);
+      
       setSelectedNote(null);
     }, 300);
-
+    
   };
 
-  const handleTogglePin = () => {
-    if (!selectedNote || !realm) return;
-    realm.write(() => {
-      selectedNote.pinned = !selectedNote.pinned;
+  const handleTogglePin = async () => {
+    if (!selectedNote || !realm || !gradeObject) return;
+    
+    await updateNote(realm, gradeObject, selectedNote, {
+      pinned: !selectedNote.pinned
     });
   };
 
-  const openDetail = (note: NoteRealm) => {
+  const openDetail = (note: Note) => {
     setSelectedNote(note);
     setEditText(note.text);
     setEditPhoto(note.photoUri || null);

@@ -3,7 +3,7 @@ import Input from "@/components/UI/Input/Input";
 import PickImage from "@/components/UI/PickImage/PickImage";
 import { Colors } from "@/CONSTANTS";
 import { ClassOfGrading, Tag } from "@/realm/models";
-import { batchCreateObjects } from "@/services/CRUD/object/object.client";
+import { createObject } from "@/services/CRUD/object/object.client";
 import React, { memo, useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -22,9 +22,6 @@ import {
 } from "react-native";
 import Realm from "realm";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 interface Props {
   onClose: () => void;
@@ -112,9 +109,7 @@ const TagChip = memo(function TagChip({ tag, isSelected, onPress }: TagChipProps
   );
 });
 
-// ---------------------------------------------------------------------------
-// MassObjectCreate
-// ---------------------------------------------------------------------------
+
 
 export default function MassObjectCreate({ onClose, realm, classObj }: Props) {
   const { t } = useTranslation();
@@ -126,12 +121,9 @@ export default function MassObjectCreate({ onClose, realm, classObj }: Props) {
   const [amountToAdd, setAmountToAdd] = useState("");
   const [tagsModalVisible, setTagsModalVisible] = useState(false);
 
-  // ✅ Set вместо массива — поиск O(1) при рендере чипов
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
-  // Держим живые Realm-объекты отдельно для передачи в batchCreateObjects
   const selectedTagsRef = useRef<Tag[]>([]);
 
-  // --- Теги ---
 
   const toggleTag = useCallback((tag: Tag) => {
     const hex = tag._id.toHexString();
@@ -150,9 +142,7 @@ export default function MassObjectCreate({ onClose, realm, classObj }: Props) {
     });
   }, []);
 
-  // --- Управление формами ---
 
-  // ✅ useCallback — стабильная ссылка, memo в FormRow не сбрасывается
   const handleChangeName = useCallback((id: number, text: string) => {
     setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, name: text } : item))
@@ -183,7 +173,6 @@ export default function MassObjectCreate({ onClose, realm, classObj }: Props) {
     setItems((prev) => [...prev, ...newItems]);
     setAmountToAdd("");
 
-    // Скроллим к концу после обновления
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 100);
@@ -194,10 +183,10 @@ export default function MassObjectCreate({ onClose, realm, classObj }: Props) {
     if (validItems.length === 0) return;
 
     try {
-      await batchCreateObjects({
+      await createObject({
         realm,
-        items: validItems,
         classObj,
+        items: validItems.map(({ id, ...item }) => item),
         tags: selectedTagsRef.current,
       });
       setItems([{ id: Date.now(), name: "", photo: undefined }]);
@@ -210,13 +199,9 @@ export default function MassObjectCreate({ onClose, realm, classObj }: Props) {
     }
   }, [items, realm, classObj, onClose]);
 
-  // --- FlatList helpers ---
 
-  // ✅ keyExtractor вынесен из JSX — стабильная ссылка, не создаётся на каждый рендер
   const keyExtractor = useCallback((item: ObjectFormItem) => String(item.id), []);
 
-  // ✅ renderItem с useCallback: FormRow и так memo, но стабильный renderItem
-  // предотвращает лишние сравнения внутри FlatList
   const renderItem = useCallback(
     ({ item, index }: ListRenderItemInfo<ObjectFormItem>) => (
       <FormRow
@@ -231,7 +216,6 @@ export default function MassObjectCreate({ onClose, realm, classObj }: Props) {
         deleteLabel={t("common.delete")}
       />
     ),
-    // items.length нужен только для canDelete — не вызывает полный ре-рендер списка
     [items.length, handleChangeName, handleChangePhoto, handleDelete, t]
   );
 
@@ -260,12 +244,7 @@ export default function MassObjectCreate({ onClose, realm, classObj }: Props) {
     [amountToAdd, handleAddForms, t]
   );
 
-  // Стабильный объект стиля колонки — не создаётся заново при каждом рендере
   const contentContainerStyle = styles.flatListContent;
-
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
 
   return (
     <SafeAreaView style={styles.screenContainer}>
@@ -274,7 +253,6 @@ export default function MassObjectCreate({ onClose, realm, classObj }: Props) {
         style={styles.flex}
       >
         <View style={styles.contentWrapper}>
-          {/* Header */}
           <View style={styles.headerContainer}>
             <Text style={styles.title}>{t("object.mass_create")}</Text>
 
@@ -306,9 +284,6 @@ export default function MassObjectCreate({ onClose, realm, classObj }: Props) {
             <View style={styles.divider} />
           </View>
 
-          {/* ✅ FlatList вместо ScrollView + .map()
-              — виртуализация: рендерит только видимые карточки.
-              При 50+ формах ScrollView держал в памяти все Input и PickImage сразу. */}
           <FlatList
             ref={flatListRef}
             data={items}
@@ -318,10 +293,7 @@ export default function MassObjectCreate({ onClose, realm, classObj }: Props) {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator
             contentContainerStyle={contentContainerStyle}
-            // ✅ Убираем лишние ре-рендеры при изменении длины items:
-            // extraData нужен, чтобы FlatList знал о canDelete (зависит от items.length)
             extraData={items.length}
-            // Небольшой initialNumToRender — формы тяжёлые (PickImage)
             initialNumToRender={6}
             maxToRenderPerBatch={4}
             windowSize={5}
@@ -344,7 +316,6 @@ export default function MassObjectCreate({ onClose, realm, classObj }: Props) {
         </View>
       </KeyboardAvoidingView>
 
-      {/* Модал выбора тегов */}
       <RNModal
         visible={tagsModalVisible}
         animationType="slide"
@@ -364,8 +335,7 @@ export default function MassObjectCreate({ onClose, realm, classObj }: Props) {
                   {t("tags.no_tags_in_class")}
                 </Text>
               ) : (
-                // ✅ TagChip мемоизирован — повторный рендер модала
-                // не пересоздаёт DOM для невыбранных тегов
+
                 classObj.tags.map((tag) => (
                   <TagChip
                     key={tag._id.toHexString()}
@@ -389,9 +359,7 @@ export default function MassObjectCreate({ onClose, realm, classObj }: Props) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
+
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },

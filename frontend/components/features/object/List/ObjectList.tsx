@@ -2,16 +2,17 @@ import ObjectCard from "@/components/features/object/Card/ObjectCard";
 import { Category, ClassOfGrading, GradeObject, LeaderboardEntry } from "@/realm/models";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useObject, useQuery, useRealm } from "@realm/react";
-import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Dimensions, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, BackHandler, Dimensions, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Realm from "realm";
 
 import Button from "@/components/UI/Buttons/Button";
 import Input from "@/components/UI/Input/Input";
 import WarnModal from "@/components/UI/Modal/WarnModal";
 import { Colors } from "@/CONSTANTS";
+import { deleteObject } from "@/services/CRUD/object/object.client";
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons'; // <-- Добавили MaterialIcons
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Gesture, GestureDetector, ScrollView } from "react-native-gesture-handler";
 import Animated, {
@@ -29,12 +30,16 @@ interface Props {
 
 function indexFromPoint(x: number, y: number, cols: number, colPitch: number, rowPitch: number): number {
   'worklet';
-  if (colPitch <= 0 || rowPitch <= 0 || cols <= 0) return -1;
-  const col = Math.min(Math.max(Math.floor(x / colPitch), 0), cols - 1);
-  const row = Math.max(Math.floor(y / rowPitch), 0);
+  if (cols <= 0) return -1;
+
+  const safeColPitch = colPitch > 0 ? colPitch : 180; 
+  const safeRowPitch = rowPitch > 0 ? rowPitch : 236; 
+
+  const col = Math.min(Math.max(Math.floor(x / safeColPitch), 0), cols - 1);
+  const row = Math.max(Math.floor(y / safeRowPitch), 0);
+  
   return row * cols + col;
 }
-
 export default function ShowAllObjectsOfClass({ id, onPressObject }: Props) {
   const realm = useRealm();
   const router = useRouter();
@@ -73,6 +78,25 @@ export default function ShowAllObjectsOfClass({ id, onPressObject }: Props) {
   const dragBaseSelection = useRef<Set<string>>(new Set());
 
 
+  
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener(
+        'hardwareBackPress',
+        () => {
+          if (isMultiSelectMode) {
+            setSelectedObjects(new Set());
+            setIsMultiSelectMode(false);
+            return true;
+          }
+
+          return false;
+        },
+      );
+
+      return () => subscription.remove();
+    }, [isMultiSelectMode]),
+  );
 
   useEffect(() => {
     colPitch.value = 0;
@@ -221,14 +245,16 @@ export default function ShowAllObjectsOfClass({ id, onPressObject }: Props) {
   };
 
   const deleteSelectedObjects = () => {
-    realm.write(() => {
-      selectedObjects.forEach((idHex) => {
-        const obj = realm.objects(GradeObject).filtered("_id == $0", new Realm.BSON.ObjectId(idHex))[0];
-        if (obj) {
-          realm.delete(obj);
-        }
-      });
-    });
+    const objects = Array.from(selectedObjects)
+      .map(idHex =>
+        realm.objectForPrimaryKey(
+          GradeObject,
+          new Realm.BSON.ObjectId(idHex)
+        )
+      )
+      .filter((obj): obj is GradeObject => obj !== null);
+
+    deleteObject(realm, objects);
     setSelectedObjects(new Set());
     setIsMultiSelectMode(false);
     setOpenDeleteModal(false);

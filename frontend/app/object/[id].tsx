@@ -136,9 +136,9 @@ export default function ObjectDetail() {
     }
   };
 
-  const deleteObj = () => {
+  const deleteObj = async () => {
     if (!realm || !object) return;
-    const ok = deleteObject(realm, object);
+    const ok = await deleteObject(realm, object);
     if (ok) router.push("/");
     else setError(t('object.failed_delete'));
 

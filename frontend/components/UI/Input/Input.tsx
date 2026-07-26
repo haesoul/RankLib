@@ -69,12 +69,9 @@ export const Input: React.FC<InputProps> = ({
 
   const SINGLE_LINE_HEIGHT = Platform.OS === 'ios' ? 44 : 48;
   const MAX_LINES = 3;
-  const CONTAINER_MARGIN = 5; // margin из стилей container
-  const HORIZONTAL_PADDING = 12; // paddingHorizontal из стилей box
+  const CONTAINER_MARGIN = 5;
+  const HORIZONTAL_PADDING = 12;
   
-  // Правильный расчет ширины с учетом margin и padding
-  // Контейнер: 100% - (margin-left + margin-right) = 100% - 10
-  // Box внутри контейнера: ширина контейнера - (padding-left + padding-right) = width - 24
   const CONTAINER_WIDTH = screenWidth - (CONTAINER_MARGIN * 2);
   const INPUT_WIDTH = CONTAINER_WIDTH - (HORIZONTAL_PADDING * 2);
 
@@ -105,16 +102,12 @@ export const Input: React.FC<InputProps> = ({
 
     const nativeHeight = e.nativeEvent.contentSize.height;
 
-    // Вычисляем максимальную высоту (MAX_LINES * SINGLE_LINE_HEIGHT)
     const LIMIT = autoGrowMaxHeight || (SINGLE_LINE_HEIGHT * MAX_LINES);
     
-    // Реальная высота контента
     const newHeight = Math.max(SINGLE_LINE_HEIGHT, nativeHeight);
     
-    // Ограничиваем высоту лимитом
     const limitedHeight = Math.min(newHeight, LIMIT);
     
-    // Включаем скролл если контент больше лимита
     const shouldScroll = newHeight > LIMIT;
 
     if (contentHeight !== limitedHeight) {

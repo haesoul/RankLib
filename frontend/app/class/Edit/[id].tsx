@@ -1,5 +1,6 @@
 import { ClassOfGrading } from '@/realm/models';
 import { updateClass, UpdateGradingProps } from '@/services/CRUD/class/class.client';
+import { MediaPaths } from '@/utils/mediaPaths';
 import { Ionicons } from '@expo/vector-icons';
 import { Realm, useObject, useRealm } from '@realm/react';
 import * as FileSystem from 'expo-file-system';
@@ -79,9 +80,8 @@ export default function ClassSettingsScreen() {
 
     if (isNewPhoto && form.photo) {
       try {
-        const timestamp = new Date().getTime();
-        const fileName = `photo_${timestamp}.jpg`; 
-        const newPath = `${FileSystem.documentDirectory}${fileName}`;
+
+        const newPath = MediaPaths.classCover(classData._id)
         console.log('newPath: ', newPath)
         await FileSystem.copyAsync({
           from: form.photo,

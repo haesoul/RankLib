@@ -1,12 +1,15 @@
 import ClassCard from "@/components/features/class/Card/ClassCard";
+import WarnModal from "@/components/UI/Modal/WarnModal";
 import { Colors } from "@/CONSTANTS";
 import { ClassOfGrading } from "@/realm/models";
+import { deleteClass } from "@/services/CRUD/class/class.client";
 import { useQuery, useRealm } from "@realm/react";
-import React, { useState } from "react";
-import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-
-import WarnModal from "@/components/UI/Modal/WarnModal";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { BackHandler, FlatList, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { runOnJS, useSharedValue } from "react-native-reanimated";
 
 type ShowAllClassesProps = {
   onSelectClass: (cls: ClassOfGrading) => void;
@@ -19,6 +22,34 @@ const ShowAllClasses = ({ onSelectClass }: ShowAllClassesProps) => {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
+
+
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener(
+        'hardwareBackPress',
+        () => {
+          if (selectedIds.length > 0) {
+            setSelectedIds([]);
+            return true; 
+          }
+
+          return false; 
+        },
+      );
+
+      return () => subscription.remove();
+    }, [selectedIds]),
+  );
+  const { height: screenHeight } = useWindowDimensions();
+  const CARD_HEIGHT = screenHeight * 0.135;
+  const ROW_PITCH = CARD_HEIGHT + 8 + 5;
+
+  const scrollOffset = useSharedValue(0);
+  const dragAnchorIndex = useSharedValue(-1);
+  const lastDragIndex = useSharedValue(-1);
+  const dragBaseSelection = useRef<string[]>([]);
 
   const isSelectMode = selectedIds.length > 0;
 
@@ -37,15 +68,51 @@ const ShowAllClasses = ({ onSelectClass }: ShowAllClassesProps) => {
     );
   };
 
-  const deleteC = () => {
-    realm.write(() => {
-      selectedIds.forEach((id) => {
-        const obj = gradeClasses.find((cls) => cls._id.toHexString() === id);
-        if (obj) {
-          realm.delete(obj);
-        }
-      });
+  const applyDragRange = (anchorIndex: number, currentIndex: number) => {
+    const total = gradeClasses.length;
+    if (!total || anchorIndex < 0) return;
+    const a = Math.min(anchorIndex, total - 1);
+    const c = Math.min(Math.max(currentIndex, 0), total - 1);
+    const from = Math.min(a, c);
+    const to = Math.max(a, c);
+    const rangeIds = gradeClasses.slice(from, to + 1).map((cls) => cls._id.toHexString());
+
+    const merged = new Set(dragBaseSelection.current);
+    rangeIds.forEach((id) => merged.add(id));
+    setSelectedIds(Array.from(merged));
+  };
+
+  const startDragSelection = (anchorIndex: number) => {
+    if (!gradeClasses.length) return;
+    dragBaseSelection.current = selectedIds;
+    applyDragRange(anchorIndex, anchorIndex);
+  };
+
+  const dragSelectGesture = Gesture.Pan()
+    .activateAfterLongPress(350)
+    .onStart((event) => {
+      const y = event.y + scrollOffset.value;
+      const idx = Math.floor(y / ROW_PITCH);
+      dragAnchorIndex.value = idx;
+      lastDragIndex.value = idx;
+      runOnJS(startDragSelection)(idx);
+    })
+    .onUpdate((event) => {
+      if (dragAnchorIndex.value < 0) return;
+      const y = event.y + scrollOffset.value;
+      const idx = Math.floor(y / ROW_PITCH);
+      if (idx === lastDragIndex.value) return;
+      lastDragIndex.value = idx;
+      runOnJS(applyDragRange)(dragAnchorIndex.value, idx);
+    })
+    .onEnd(() => {
+      dragAnchorIndex.value = -1;
+      lastDragIndex.value = -1;
     });
+
+  const deleteC = async () => {
+    const toDelete = gradeClasses.filter((cls) => selectedIds.includes(cls._id.toHexString()));
+    await deleteClass(realm, toDelete);
     setSelectedIds([]);
     setOpenDeleteModal(false);
   };
@@ -68,7 +135,6 @@ const ShowAllClasses = ({ onSelectClass }: ShowAllClassesProps) => {
 
   return (
     <View style={styles.container}>
-      {/* Красивая экшен-панель для AMOLED */}
       {isSelectMode && (
         <View style={styles.selectionHeader}>
           <Text style={styles.selectionText}>
@@ -83,13 +149,19 @@ const ShowAllClasses = ({ onSelectClass }: ShowAllClassesProps) => {
         </View>
       )}
 
-      <FlatList
-        data={gradeClasses}
-        keyExtractor={(item) => item._id.toHexString()}
-        renderItem={renderItem}
-        contentContainerStyle={{ paddingBottom: 20, gap: 5 }}
-        extraData={selectedIds} 
-      />
+      <GestureDetector gesture={dragSelectGesture}>
+        <View style={{ flex: 1 }}>
+          <FlatList
+            data={gradeClasses}
+            keyExtractor={(item) => item._id.toHexString()}
+            renderItem={renderItem}
+            contentContainerStyle={{ paddingBottom: 20, gap: 5 }}
+            extraData={selectedIds}
+            onScroll={(e) => { scrollOffset.value = e.nativeEvent.contentOffset.y; }}
+            scrollEventThrottle={16}
+          />
+        </View>
+      </GestureDetector>
 
       <WarnModal
         visible={openDeleteModal}
@@ -122,9 +194,8 @@ const styles = StyleSheet.create({
   },
   selectionHeader: {
     flexDirection: 'row',
-    // justifyContent: 'between',
     alignItems: 'center',
-    backgroundColor: '#0F0F11', 
+    // backgroundColor: '#0F0F11', 
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderBottomWidth: 1,

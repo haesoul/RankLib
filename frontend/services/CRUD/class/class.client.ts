@@ -1,65 +1,67 @@
-import { ClassOfGrading } from "@/realm/models";
+import { ClassOfGrading, LeaderboardEntry } from "@/realm/models";
 import { Callbacks } from "@/tools";
+import { deleteFiles } from "@/utils/deleteFiles";
+import { logStorageTree } from "@/utils/logStorage";
+import { MediaPaths } from "@/utils/mediaPaths";
 import * as FileSystem from "expo-file-system";
 import Realm from "realm";
 
-interface CreateClassArgs extends Callbacks {
-  realm: Realm;
-  name: string | null;
-  photo: string | undefined;
-  priority: string | null;
-
-
+export interface ClassCreateItem {
+  id?: Realm.BSON.ObjectId;
+  name: string;
+  photo?: string;
+  priority?: string | number;
 }
 
-export const createClass = async ({
-  realm,
-  name,
-  photo,
-  priority,
+interface CreateClassArgs extends Callbacks {
+  realm: Realm;
+  items: ClassCreateItem[];
+}
 
-}: CreateClassArgs) => {
-  if (!name?.trim()) {
-    return;
-  }
+export const createClass = async ({ realm, items }: CreateClassArgs): Promise<Realm.BSON.ObjectId[]> => {
+  const validItems = items.filter((i) => i.name?.trim());
+  if (!validItems.length) return [];
 
-  let destPath: string | undefined;
-  const class_id = new Realm.BSON.ObjectId();
+  const prepared = await Promise.all(
+    validItems.map(async (item) => {
+      const classId = item.id ?? new Realm.BSON.ObjectId();
+      let destPath: string | undefined;
 
-  if (photo) {
-    destPath = `${FileSystem.documentDirectory}${class_id.toHexString()}.jpg`;
+      if (item.photo) {
+        const classDir = MediaPaths.classDir(classId);
+        const proposedDest = MediaPaths.classCover(classId);
+        try {
+          await FileSystem.makeDirectoryAsync(classDir, { intermediates: true });
+          await FileSystem.copyAsync({ from: item.photo, to: proposedDest });
+          await deleteFiles(item.photo);
+          destPath = proposedDest;
+        } catch (err) {
+          console.error(`Ошибка копирования фото для ${item.name}:`, err);
+          await deleteFiles(classDir);
+        }
+      }
 
-    await FileSystem.copyAsync({
-      from: photo,
-      to: destPath,
-    });
-  }
+      const parsedPriority = parseInt(String(item.priority ?? "1"));
+      const finalPriority = isNaN(parsedPriority) || parsedPriority < 1 ? 1 : parsedPriority;
 
-  const parsedPriority = parseInt(priority ?? "1");
-
-  if (isNaN(parsedPriority) || parsedPriority < 1) {
-    console.error("Ошибка", "Приоритет должен быть числом >= 1");
-    return;
-  }
+      return { _id: classId, name: item.name.trim(), photo: destPath, priority: finalPriority };
+    })
+  );
 
   try {
     realm.write(() => {
-      realm.create<ClassOfGrading>("ClassOfGrading", {
-        _id: class_id,
-        name: name.trim(),
-        photo: destPath,
-        priority: parsedPriority,
-        categories: [],
-        objects: [],
-        tags: [],
+      prepared.forEach((data) => {
+        realm.create("ClassOfGrading", { ...data, categories: [], objects: [], tags: [] });
       });
     });
-    return class_id;
   } catch (err) {
-    console.error("Не удалось создать класс", err)
+    console.error("Критическая ошибка при сохранении классов:", err);
+    throw err;
   }
-};
 
+  await logStorageTree();
+  return prepared.map((item) => item._id);
+};
 
 export interface UpdateGradingProps {
   name?: string;
@@ -71,19 +73,42 @@ export interface UpdateGradingProps {
   notesName?: string;
 }
 
-// updateClassOfGrading
-export const updateClass = (
+export const updateClass = async (
   realm: Realm,
   objectToUpdate: ClassOfGrading, 
   updates: UpdateGradingProps
 ) => {
   if (!objectToUpdate || !updates || Object.keys(updates).length === 0) return;
 
+  const hasPhotoChange = Boolean(
+    updates.photo && !updates.photo.startsWith(FileSystem.documentDirectory || "")
+  );
+
   try {
+    let destPath: string | undefined;
+
+    if (hasPhotoChange && updates.photo) {
+      await FileSystem.makeDirectoryAsync(MediaPaths.classDir(objectToUpdate._id), { intermediates: true });
+
+      const oldPath = objectToUpdate.photo;
+      destPath = MediaPaths.classCover(objectToUpdate._id, `cover_${Date.now()}.jpg`);
+
+      await FileSystem.copyAsync({ from: updates.photo, to: destPath });
+      await deleteFiles(updates.photo);
+
+      if (oldPath) {
+        const cleanOldPath = oldPath.split("?")[0];
+        if (cleanOldPath !== destPath) {
+          await deleteFiles(cleanOldPath);
+        }
+      }
+    }
+
     realm.write(() => {
       (Object.keys(updates) as Array<keyof UpdateGradingProps>).forEach((key) => {
-        const value = updates[key];
+        if (key === "photo") return; 
 
+        const value = updates[key];
         const isStringEmpty = typeof value === "string" && value.trim().length === 0;
         const isNullish = value === null || value === undefined;
 
@@ -92,89 +117,76 @@ export const updateClass = (
           objectToUpdate[key] = value;
         }
       });
-      
+
+      if (destPath) {
+        objectToUpdate.photo = destPath;
+      }
     });
   } catch (error) {
     console.error("Ошибка при обновлении ClassOfGrading:", error);
   }
+  await logStorageTree();
 };
-export function deleteClass(
-  realm: Realm,
-  classObj: ClassOfGrading,
-) {
-  realm.write(() => {
-      realm.delete(classObj)
-    })  
-}
-export function deleteClasses(
-  realm: Realm,
-  classesArray: ClassOfGrading[],
-) {
-  realm.write(() => {
-    classesArray.forEach((classObj) => {
-      realm.delete(classObj);
-    });
-  });
-}
-export interface ClassData {
-  name: string;
-  photo?: string;
-  priority?: string;
-}
 
-export const createClassesBulk = async (
-  realm: Realm,
-  classesData: ClassData[]
-) => {
-  const preparedItems = await Promise.all(
-    classesData.map(async (item) => {
-      if (!item.name?.trim()) return null;
+export async function deleteClass(
+  realm: Realm | undefined | null,
+  target: ClassOfGrading | ClassOfGrading[] | null | undefined
+): Promise<boolean> {
+  if (!realm || !target) return false;
 
-      const class_id = new Realm.BSON.ObjectId();
-      let destPath: string | undefined;
-
-      if (item.photo) {
-        destPath = `${FileSystem.documentDirectory}${class_id.toHexString()}.jpg`;
-        try {
-          await FileSystem.copyAsync({
-            from: item.photo,
-            to: destPath,
-          });
-        } catch (err) {
-          console.error(`Ошибка копирования фото для ${item.name}:`, err);
-        }
-      }
-
-      const parsedPriority = parseInt(item.priority ?? "1");
-      const finalPriority = isNaN(parsedPriority) || parsedPriority < 1 ? 1 : parsedPriority;
-
-      return {
-        _id: class_id,
-        name: item.name.trim(),
-        photo: destPath,
-        priority: finalPriority,
-      };
-    })
+  const items = (Array.isArray(target) ? target : [target]).filter(
+    (cls): cls is ClassOfGrading => Boolean(cls && cls.isValid())
   );
 
-  const validItems = preparedItems.filter((item): item is NonNullable<typeof item> => item !== null);
-  if (validItems.length === 0) return [];
+  if (items.length === 0) return false;
 
   try {
+    const dirsToDelete = items
+      .map((cls) => {
+        try {
+          return MediaPaths.classDir(cls);
+        } catch {
+          return null;
+        }
+      })
+      .filter((dir): dir is string => Boolean(dir));
+
     realm.write(() => {
-      validItems.forEach((data) => {
-        realm.create("ClassOfGrading", {
-          ...data,
-          categories: [],
-          objects: [],
-          tags: [],
-        });
-      });
+      for (const cls of items) {
+        for (const obj of Array.from(cls.objects)) {
+          for (const catObj of Array.from(obj.categories_of_object)) {
+            for (const subObj of Array.from(catObj.subcategories_of_category)) {
+              realm.delete(subObj);
+            }
+            realm.delete(catObj);
+          }
+          realm.delete(obj);
+        }
+
+        for (const cat of Array.from(cls.categories)) {
+          for (const sub of Array.from(cat.subcategories)) {
+            realm.delete(sub);
+          }
+          realm.delete(cat);
+        }
+
+        // висящие записи лидерборда по этому классу
+        const entries = realm
+          .objects<LeaderboardEntry>("LeaderboardEntry")
+          .filtered("classOfGrading._id == $0", cls._id);
+        realm.delete(entries);
+
+        realm.delete(cls);
+      }
     });
 
-    return validItems.map(item => item._id);
-  } catch (err) {
-    console.error("Критическая ошибка при массовом сохранении в Realm:", err);
-    throw err; 
+    await deleteFiles(dirsToDelete);
+
+    return true;
+  } catch (e) {
+    console.error("deleteClass error:", e);
+    return false;
+  } finally {
+    await logStorageTree();
   }
-};
+}

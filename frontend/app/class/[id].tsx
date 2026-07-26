@@ -152,7 +152,6 @@ export default function ClassDetail() {
       ]
     },
   ];
-  // <Button title={t('object.mass_create')} onPress={() => setShowMassCreateObject(true)}/>
 
 
   function deleteC() {

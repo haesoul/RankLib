@@ -41,7 +41,7 @@ export default function CreateObjectOfClass({ visible, onClose, realm, classObj 
   };
 
   const handleCreate = async () => {
-    await createObject({ realm, name, photo, classObj, tags: selectedTags });
+    await createObject({ realm, classObj, items: [{ name, photo }], tags: selectedTags });
     
     setName("");
     setPhoto(undefined);

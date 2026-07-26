@@ -1,5 +1,5 @@
 import { ClassOfGrading } from "@/realm/models";
-import { createClassesBulk } from "@/services/CRUD/class/class.client";
+import { createClass } from "@/services/CRUD/class/class.client";
 import { downloadImageToLocalStorage } from "@/utils/downloadImage";
 import { useRealm } from "@realm/react";
 import React, { useRef, useState } from "react";
@@ -175,6 +175,7 @@ export default function ProMainScreen() {
     }
 
     if (mode === "single") {
+      const id = new Realm.BSON.ObjectId()
       const validation = validateSingle(parsed);
       if (!validation.valid) {
         setStatus("error");
@@ -186,7 +187,7 @@ export default function ProMainScreen() {
 
       let localPhoto: string | undefined;
       try {
-        localPhoto = await downloadImageToLocalStorage(payload.photo);
+        localPhoto = await downloadImageToLocalStorage(payload.photo, {type: "class", classId: id});
       } catch (err) {
         setStatus("error");
         setMessage("Не удалось скачать фото: " + (err as Error).message);
@@ -196,7 +197,7 @@ export default function ProMainScreen() {
       try {
         realm.write(() => {
           realm.create<ClassOfGrading>("ClassOfGrading", {
-            _id: new Realm.BSON.ObjectId(),
+            _id: id,
             name: payload.name.trim(),
             priority: payload.priority ? Math.round(Number(payload.priority)) : 1,
             categories: [],
@@ -224,19 +225,20 @@ export default function ProMainScreen() {
         return;
       }
 
-const rawItems = parsed as ProClassPayload[];
-      const failedPhotos: string[] = [];
-      const downloadedPhotos = await Promise.all(
-        rawItems.map(async (item) => {
-          try {
-            return await downloadImageToLocalStorage(item.photo);
-          } catch (err) {
-            failedPhotos.push(item.name);
-            console.warn(`Фото для "${item.name}" не скачалось:`, err);
-            return undefined;
-          }
-        })
-      );
+    const rawItems = parsed as ProClassPayload[];
+    const itemIds = rawItems.map(() => new Realm.BSON.ObjectId());
+    const failedPhotos: string[] = [];
+    const downloadedPhotos = await Promise.all(
+      rawItems.map(async (item, i) => {
+        try {
+          return await downloadImageToLocalStorage(item.photo, {type: "class", classId: itemIds[i]});
+        } catch (err) {
+          failedPhotos.push(item.name);
+          console.warn(`Фото для "${item.name}" не скачалось:`, err);
+          return undefined;
+        }
+      })
+    );
 
       const classesData = rawItems.map((item, i) => ({
         name: item.name,
@@ -249,7 +251,7 @@ const rawItems = parsed as ProClassPayload[];
       }));
 
       try {
-        const ids = await createClassesBulk(realm, classesData);
+        const ids = await createClass({ realm, items: classesData });
         setStatus("success");
         setMessage(
           failedPhotos.length

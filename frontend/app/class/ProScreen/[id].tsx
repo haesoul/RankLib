@@ -1,5 +1,5 @@
 import { ClassOfGrading } from "@/realm/models";
-import { batchCreateObjects, createObject } from "@/services/CRUD/object/object.client";
+import { createObject } from "@/services/CRUD/object/object.client";
 import { downloadImageToLocalStorage, isDownloadedTempFile } from "@/utils/downloadImage";
 import { useRealm } from "@realm/react";
 import * as FileSystem from "expo-file-system";
@@ -185,6 +185,7 @@ export default function ProObjectScreen() {
     }
 
     if (mode === "single") {
+      const objectId = new Realm.BSON.ObjectId();
       const validation = validateSingle(parsed);
       if (!validation.valid) {
         setStatus("error");
@@ -196,7 +197,7 @@ export default function ProObjectScreen() {
 
       let localPhoto: string | undefined;
       try {
-        localPhoto = await downloadImageToLocalStorage(payload.photo);
+        localPhoto = await downloadImageToLocalStorage(payload.photo, { type: "object", classId: classOfGrading._id, objectId: objectId });
       } catch (err) {
         setStatus("error");
         setMessage("Не удалось скачать фото: " + (err as Error).message);
@@ -206,11 +207,14 @@ export default function ProObjectScreen() {
       try {
         await createObject({
           realm,
-          name: payload.name,
-          photo: localPhoto,
           classObj: classOfGrading,
-          overallRank: payload.overall_rank,
-          description: payload.description,
+          items: [{
+            name: payload.name,
+            photo: localPhoto,
+            overallRank: payload.overall_rank,
+            description: payload.description
+          }],
+          tags: []
         });
         if (isDownloadedTempFile(localPhoto)) {
           FileSystem.deleteAsync(localPhoto!, { idempotent: true }).catch((e: any) =>
@@ -233,11 +237,12 @@ export default function ProObjectScreen() {
       }
 
       const rawItems = parsed as ProObjectPayload[];
+      const itemIds = rawItems.map(() => new Realm.BSON.ObjectId());
       const failedPhotos: string[] = [];
       const downloadedPhotos = await Promise.all(
-        rawItems.map(async (item) => {
+        rawItems.map(async (item, i) => {
           try {
-            return await downloadImageToLocalStorage(item.photo);
+            return await downloadImageToLocalStorage(item.photo, { type: "object", classId: classOfGrading._id, objectId: itemIds[i] });
           } catch (err) {
             failedPhotos.push(item.name);
             console.warn(`Фото для "${item.name}" не скачалось:`, err);
@@ -247,10 +252,11 @@ export default function ProObjectScreen() {
       );
 
       try {
-        await batchCreateObjects({
+        await createObject({
           realm,
           classObj: classOfGrading,
           items: rawItems.map((item, i) => ({
+            id: itemIds[i],
             name: item.name,
             photo: downloadedPhotos[i],
             overallRank: item.overall_rank,
