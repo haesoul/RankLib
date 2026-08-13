@@ -38,7 +38,8 @@ export const ru = {
       removal_requirements: "Введите код подтверждения для удаления:",
       calculations: "Расчеты",
       modes: "Режимы", 
-      pro_mode: "Pro режим"
+      pro_mode: "Pro режим",
+      selected_items: "Выбрано элементов: {{count}}",
     },
 
     categories: {
@@ -105,7 +106,13 @@ export const ru = {
       not_found: "Объект не найден",
       name_placeholder: "Название объекта",
       add_fields: "Добавить поля (макс. 100)",
-      compare: "Сравнить объекты"
+      compare: "Сравнить объекты",
+      card: {
+        studio_title: "Студия карточек",
+        pick_background: "Выбрать фон",
+        pick_overlay: "Выбрать накладываемое фото",
+        background_opacity: "Прозрачность фона"
+      }
     },
 
     gallery: {

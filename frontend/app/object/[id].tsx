@@ -207,6 +207,15 @@ export default function ObjectDetail() {
             setTimeout(() => router.push(`/object/Card2/${id}`), 300);
           },
         },
+        {
+          id: 'variant-3',
+          title: `${t('common.variant')} 3`,
+          icon: 'style' as const,
+          onPress: () => {
+            setObjectMenuOpen(false);
+            setTimeout(() => router.push(`/object/CardPro/${id}`), 300);
+          },
+        },
       ],
     },
     {

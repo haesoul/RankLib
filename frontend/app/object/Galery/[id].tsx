@@ -12,16 +12,16 @@ import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Alert,
+  BackHandler,
   Dimensions,
   FlatList,
-  Image,
-  Modal as RNModal,
+  Image, Pressable, Modal as RNModal,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -82,9 +82,9 @@ export default function GalleryScreen() {
   const [messageModalType, setMessageModalType] = useState<'success' | 'error'>('success');
   const [showHeader, setShowHeader] = useState(true);
 
-  const item0Ref = useRef<View>(null);
-  const item1Ref = useRef<View>(null);
-  const itemRowRef = useRef<View>(null);
+  // const item0Ref = useRef<View>(null);
+  // const item1Ref = useRef<View>(null);
+  // const itemRowRef = useRef<View>(null);
   const colPitch = useSharedValue(0);
   const rowPitch = useSharedValue(0);
   const scrollOffset = useSharedValue(0);
@@ -92,22 +92,46 @@ export default function GalleryScreen() {
   const lastDragIndex = useSharedValue(-1);
   const dragBaseSelection = useRef<number[]>([]);
 
-  const measurePitches = () => {
-    if (item0Ref.current && item1Ref.current) {
-      item0Ref.current.measure((_x0, _y0, _w0, _h0, pageX0) => {
-        item1Ref.current?.measure((_x1, _y1, _w1, _h1, pageX1) => {
-          colPitch.value = Math.abs(pageX1 - pageX0);
-        });
-      });
-    }
-    if (item0Ref.current && itemRowRef.current) {
-      item0Ref.current.measure((_x0, _y0, _w0, _h0, _pageX0, pageY0) => {
-        itemRowRef.current?.measure((_x1, _y1, _w1, _h1, _pageX1, pageY1) => {
-          rowPitch.value = Math.abs(pageY1 - pageY0);
-        });
-      });
-    }
-  };
+
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener(
+        'hardwareBackPress',
+        () => {
+          if (isMultiSelectMode) {
+            setIsMultiSelectMode(false);
+            setSelectedIndexes([]);
+            return true; 
+          }
+
+          return false; 
+        },
+      );
+
+      return () => subscription.remove();
+    }, [isMultiSelectMode]),
+  );
+  // const measurePitches = () => {
+  //   if (item0Ref.current && item1Ref.current) {
+  //     item0Ref.current.measure((_x0, _y0, _w0, _h0, pageX0) => {
+  //       item1Ref.current?.measure((_x1, _y1, _w1, _h1, pageX1) => {
+  //         colPitch.value = Math.abs(pageX1 - pageX0);
+  //       });
+  //     });
+  //   }
+  //   if (item0Ref.current && itemRowRef.current) {
+  //     item0Ref.current.measure((_x0, _y0, _w0, _h0, _pageX0, pageY0) => {
+  //       itemRowRef.current?.measure((_x1, _y1, _w1, _h1, _pageX1, pageY1) => {
+  //         rowPitch.value = Math.abs(pageY1 - pageY0);
+  //       });
+  //     });
+  //   }
+  //   if (media.length <= NUM_COLUMNS) {
+  //     rowPitch.value = tileSize + ITEM_MARGIN * 2;
+  //     return;
+  //   }
+  // };
 
   const applyDragRange = (anchorIndex: number, currentIndex: number) => {
     if (!media.length || anchorIndex < 0) return;
@@ -162,6 +186,12 @@ export default function GalleryScreen() {
     const totalMargins = ITEM_MARGIN * (NUM_COLUMNS + 1);
     return Math.floor((width - totalMargins - 10) / NUM_COLUMNS);
   }, []);
+
+  useEffect(() => {
+    const exactPitch = tileSize + ITEM_MARGIN * 2;
+    colPitch.value = exactPitch;
+    rowPitch.value = exactPitch;
+  }, [tileSize, colPitch, rowPitch]);
 
   const gridFlatRef = useRef<FlatList>(null);
   const fullscreenFlatRef = useRef<FlatList>(null);
@@ -251,27 +281,30 @@ export default function GalleryScreen() {
     const uri = item.thumbnailUri || item.uri;
     const isSelected = selectedIndexes.includes(index);
 
-    const measureRef =
-      index === 0 ? item0Ref :
-      index === 1 ? item1Ref :
-      index === NUM_COLUMNS ? itemRowRef :
-      undefined;
+    // const measureRef =
+    //   index === 0 ? item0Ref :
+    //   index === 1 ? item1Ref :
+    //   index === NUM_COLUMNS ? itemRowRef :
+    //   undefined;
 
     return (
-      <View ref={measureRef} onLayout={measureRef ? measurePitches : undefined} collapsable={false}>
-        <TouchableOpacity
-          activeOpacity={0.85}
-          style={[styles.tile, { width: tileSize, height: tileSize }]}
-          onPress={() => {
-            !isMultiSelectMode && setSelectedIndex(index);
-            isMultiSelectMode && toggleSelectIndex(index);
-          }}
-          onLongPress={() => {
-            setSelectedIndex(null);
-            setIsMultiSelectMode(true);
-            toggleSelectIndex(index);
-          }}
-        >
+        <View collapsable={false}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.tile,
+              { width: tileSize, height: tileSize },
+              pressed ? { opacity: 0.85 } : {}
+            ]}
+            onPress={() => {
+              !isMultiSelectMode && setSelectedIndex(index);
+              isMultiSelectMode && toggleSelectIndex(index);
+            }}
+            onLongPress={() => {
+              setSelectedIndex(null);
+              setIsMultiSelectMode(true);
+              toggleSelectIndex(index);
+            }}
+          >
           {uri ? (
             <Image source={{ uri }} style={styles.image} resizeMode="cover" />
           ) : (
@@ -291,8 +324,8 @@ export default function GalleryScreen() {
               </View>
             </View>
           )}
-        </TouchableOpacity>
-      </View>
+          </Pressable>
+        </View>
     );
   };
 

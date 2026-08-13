@@ -1,6 +1,4 @@
-/**
- * app/ObjectCard/[id].tsx  — карточка объекта с новым RankBadge + анимации
- */
+
 import { RankBadge } from '@/components/features/class/RankType/RankBadge';
 import Button from '@/components/UI/Buttons/Button';
 import { SuccessMessage } from '@/components/UI/ToastMessage/ToastMessage';
@@ -36,7 +34,6 @@ export default function ObjectCardScreen() {
   }, [id]);
   const obj = useObject(GradeObject, objectId);
 
-  // ── Entrance animations ──────────────────────────────────────────────────
   const cardOp  = useRef(new Animated.Value(0)).current;
   const cardTy  = useRef(new Animated.Value(24)).current;
   const badgeSc = useRef(new Animated.Value(0.6)).current;
@@ -99,15 +96,12 @@ export default function ObjectCardScreen() {
           ref={viewRef}
           style={[s.card, { opacity: cardOp, transform: [{ translateY: cardTy }] }]}
         >
-          {/* Rank color top glow */}
           {activeRankType && (
             <View style={[s.topGlow, { backgroundColor: rankColor + '28' }]} />
           )}
 
-          {/* ── Header ─────────────────────────────────────────────── */}
           <View style={s.headerRow}>
 
-            {/* Photo */}
             {obj.photo ? (
               <Image source={{ uri: obj.photo }} style={s.photo} />
             ) : (

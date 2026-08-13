@@ -138,13 +138,13 @@ const ShowAllClasses = ({ onSelectClass }: ShowAllClassesProps) => {
       {isSelectMode && (
         <View style={styles.selectionHeader}>
           <Text style={styles.selectionText}>
-            Выбрано элементов: {selectedIds.length}
+            {t('common.selected_items', { count: selectedIds.length })}
           </Text>
           <TouchableOpacity 
             style={styles.deleteButton} 
             onPress={() => setOpenDeleteModal(true)}
           >
-            <Text style={styles.deleteButtonText}>Удалить</Text>
+            <Text style={styles.deleteButtonText}>{t('common.delete')}</Text>
           </TouchableOpacity>
         </View>
       )}
