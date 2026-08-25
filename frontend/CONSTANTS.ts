@@ -68,8 +68,8 @@ export const RANK_COLOR_PRESETS = [
 
 
 export const PRO_MODE = 'pro_mode'
-
-
+export const OBJECT_VIEW_TYPE = 'objectViewType'
+export const LANGUAGE = 'language'
 
 
 

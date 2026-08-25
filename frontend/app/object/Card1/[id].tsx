@@ -1,9 +1,8 @@
-import { CategoryOfObject, GradeObject } from '@/realm/models';
-import { Realm, useObject } from '@realm/react';
-// import { useFonts } from 'expo-font';
 import Button from '@/components/UI/Buttons/Button';
 import { SuccessMessage } from '@/components/UI/ToastMessage/ToastMessage';
 import { Colors } from '@/CONSTANTS';
+import { CategoryOfObject, GradeObject } from '@/realm/models';
+import { Realm, useObject } from '@realm/react';
 import * as MediaLibrary from 'expo-media-library';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useRef, useState } from 'react';
@@ -134,7 +133,6 @@ const GradeObjectCard = () => {
 };
 export default GradeObjectCard
 const styles = StyleSheet.create({
-  // Основная карточка
   cardContainer: {
     backgroundColor: Colors.background,
     borderRadius: 20,
@@ -150,7 +148,6 @@ const styles = StyleSheet.create({
     marginTop: 50
   },
 
-  // Хедер
   header: {
     flexDirection: 'row',
     marginBottom: 5,
@@ -189,7 +186,7 @@ const styles = StyleSheet.create({
   objectName: {
     color: '#FFFFFF',
     fontSize: 22,
-    fontWeight: '800', // Extra Bold для игрового стиля
+    fontWeight: '800',
     letterSpacing: 0.5,
     marginBottom: 6,
     textTransform: 'uppercase',
@@ -218,26 +215,15 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
   description: {
-    // color: '#6B7280',
     color: '#bebebeff', 
     fontSize: 12,
     fontStyle: 'italic', 
     lineHeight: 14,  
     
   },
-  // description: {
-  //   color: '#D1D5DB',          
-  //   fontSize: 12,            
-  //   // fontStyle: 'italic',    
-  //   fontFamily: 'serif',       
-  //   lineHeight: 16,          
-  //   // letterSpacing: 0.1,     
-  // },
 
-
-  // Блок статистики (категорий)
   statsWrapper: {
-    backgroundColor: '#1F2029', // Чуть светлее фона карточки, чтобы выделить блок
+    backgroundColor: '#1F2029',
     borderRadius: 16,
     padding: 12,
     borderWidth: 1,
@@ -256,10 +242,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: 8, // Gap работает в новых версиях RN, если старая - используйте margin
+    gap: 8, 
   },
   gridItem: {
-    // Ширина примерно 30% минус отступы, чтобы влезло 3 в ряд
     width: '31%', 
     backgroundColor: '#262730',
     borderRadius: 12,
@@ -278,7 +263,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -6,
     left: -6,
-    backgroundColor: '#3B82F6', // Акцентный цвет (синий неон)
+    backgroundColor: '#3B82F6', 
     width: 20,
     height: 20,
     borderRadius: 10,
@@ -303,6 +288,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: 'bold',
-    fontVariant: ['tabular-nums'], // Моноширинные цифры для ровности
+    fontVariant: ['tabular-nums'], 
   }
 });

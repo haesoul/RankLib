@@ -40,10 +40,10 @@ export default function ClassSettingsScreen() {
         name: classData.name,
         photo: classData.photo,
         priority: classData.priority,
-        objectName: classData.objectName,
-        objectsName: classData.objectsName,
-        noteName: classData.noteName,
-        notesName: classData.notesName,
+        // objectName: classData.objectName,
+        // objectsName: classData.objectsName,
+        // noteName: classData.noteName,
+        // notesName: classData.notesName,
       });
     }
   }, []);
@@ -155,11 +155,11 @@ export default function ClassSettingsScreen() {
                 />
             </View>
 
-            <Text style={[styles.sectionTitle, { marginTop: 30 }]}>{t('class.terminology')}</Text>
+            {/* <Text style={[styles.sectionTitle, { marginTop: 30 }]}>{t('class.terminology')}</Text> */}
 
-            <Text style={styles.sectionSubtitle}>{t('class.terminology_setting')}</Text>
+            {/* <Text style={styles.sectionSubtitle}>{t('class.terminology_setting')}</Text> */}
 
-            <View style={styles.row}>
+            {/* <View style={styles.row}>
                 <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
                 <Text style={styles.label}>{t('class.object_name')}</Text>
                 <TextInput
@@ -203,7 +203,7 @@ export default function ClassSettingsScreen() {
                     placeholderTextColor="#555"
                 />
                 </View>
-            </View>
+            </View> */}
 
             </View>
 
@@ -234,23 +234,35 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   
-  // Header
+  // headerContainer: {
+  //   height: 200,
+  //   width: '100%',
+  //   backgroundColor: '#111',
+  //   borderBottomWidth: 1,
+  //   borderBottomColor: '#333',
+  // },
   headerContainer: {
-    height: 200,
     width: '100%',
+    aspectRatio: 1,
     backgroundColor: '#111',
     borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomColor: '#222',
   },
   headerImage: {
     width: '100%',
     height: '100%',
   },
+  // headerGradient: {
+  //   flex: 1,
+  //   justifyContent: 'center',
+  //   alignItems: 'center',
+  //   backgroundColor: 'rgba(0,0,0,0.3)',
+  // },
   headerGradient: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    paddingBottom: 24,
   },
   photoPlaceholder: {
     alignItems: 'center',
@@ -269,12 +281,12 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 
-  // Form
   formContainer: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 24,
   },
   sectionTitle: {
-    color: '#FFD700', // Gold accent
+    color: '#FFD700', 
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 1,

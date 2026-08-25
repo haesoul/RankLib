@@ -1,8 +1,6 @@
-/**
- * BatchGradingScreen
- * Экран сравнительной оценки объектов класса по одной категории/подкатегории
- */
 
+
+import { Colors } from "@/CONSTANTS";
 import {
   CategoryOfObject,
   ClassOfGrading,
@@ -10,6 +8,7 @@ import {
   SubCategoryOfObject
 } from "@/realm/models";
 import React, { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FlatList,
   Modal,
@@ -23,24 +22,7 @@ import {
 } from "react-native";
 import { Realm } from "realm";
 
-// ─── Colors (из CONSTANTS.ts) ─────────────────────────────────────────────────
-const Colors = {
-  background: "#000000",
-  backgroundSecondary: "#18181a",
-  surface: "#121212",
-  inputBackground: "#262626",
-  text: "#FFFFFF",
-  textSecondary: "#A0A0A0",
-  primary: "#8B5CF6",
-  accent: "#EC4899",
-  error: "#FF4757",
-  success: "#2ECC71",
-  surfaceDarker: "#0a0a0a",
-  surfaceMuted: "#0f0f0f",
-  textOffWhite: "#f5f5f7",
-};
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type GradeMode = "category" | "subcategory";
 
@@ -50,7 +32,6 @@ interface Props {
   onClose?: () => void;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getRankColor(rank: number | null | undefined): string {
   if (rank == null) return Colors.textSecondary;
@@ -66,7 +47,6 @@ function getRankLabel(rank: number | null | undefined): string {
   return rank.toFixed(1);
 }
 
-// ─── RankInput ────────────────────────────────────────────────────────────────
 
 interface RankInputProps {
   value: number | null | undefined;
@@ -122,7 +102,6 @@ const RankInput: React.FC<RankInputProps> = ({ value, onChange }) => {
   );
 };
 
-// ─── SelectorModal ────────────────────────────────────────────────────────────
 
 interface SelectorItem {
   id: string;
@@ -198,13 +177,13 @@ const SelectorModal: React.FC<SelectorModalProps> = ({
   );
 };
 
-// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export const BatchGradingScreen: React.FC<Props> = ({
   realm,
   classOfGrading,
   onClose,
 }) => {
+  const {t} = useTranslation();
   const categories = useMemo(
     () => Array.from(classOfGrading.categories),
     [classOfGrading]
@@ -228,7 +207,6 @@ export const BatchGradingScreen: React.FC<Props> = ({
     [selectedCategory]
   );
 
-  // Auto-select first subcategory when category changes
   const handleSelectCategory = useCallback(
     (id: string) => {
       setSelectedCategoryId(id);
@@ -252,7 +230,6 @@ export const BatchGradingScreen: React.FC<Props> = ({
     [subcategories, selectedSubcategoryId]
   );
 
-  // Objects sorted by current rank descending (nulls at bottom)
   const sortedObjects = useMemo(() => {
     const objs = Array.from(classOfGrading.objects);
     return [...objs].sort((a, b) => {
@@ -292,7 +269,7 @@ export const BatchGradingScreen: React.FC<Props> = ({
   ]);
 
 
-  const handleCategoryRankChange = useCallback(
+const handleCategoryRankChange = useCallback(
     (obj: GradeObject, newRank: number | null) => {
       if (!selectedCategory) return;
       realm.write(() => {
@@ -301,14 +278,13 @@ export const BatchGradingScreen: React.FC<Props> = ({
         ) as CategoryOfObject | undefined;
 
         if (!cor) {
-          cor = realm.create("CategoryOfObject", {
+          cor = realm.create<CategoryOfObject>("CategoryOfObject", {
             _id: new Realm.BSON.ObjectId(),
             category: selectedCategory,
             object: obj,
             rank: newRank,
-            subcategories_of_category: [],
-            proof: null,
-          }) as CategoryOfObject;
+            subcategories_of_category: [] as any, 
+          });
           (obj.categories_of_object as any).push(cor);
         } else {
           cor.rank = newRank;
@@ -327,14 +303,13 @@ export const BatchGradingScreen: React.FC<Props> = ({
         ) as CategoryOfObject | undefined;
 
         if (!cor) {
-          cor = realm.create("CategoryOfObject", {
+          cor = realm.create<CategoryOfObject>("CategoryOfObject", {
             _id: new Realm.BSON.ObjectId(),
             category: selectedCategory,
             object: obj,
             rank: null,
-            subcategories_of_category: [],
-            proof: null,
-          }) as CategoryOfObject;
+            subcategories_of_category: [] as any, 
+          });
           (obj.categories_of_object as any).push(cor);
         }
 
@@ -343,14 +318,12 @@ export const BatchGradingScreen: React.FC<Props> = ({
         ) as SubCategoryOfObject | undefined;
 
         if (!sub) {
-          sub = realm.create("SubCategoryOfObject", {
+          sub = realm.create<SubCategoryOfObject>("SubCategoryOfObject", {
             _id: new Realm.BSON.ObjectId(),
             subcategory: selectedSubcategory,
             category_of_object: cor,
             rank: newRank,
-            color: null,
-            proof: null,
-          }) as SubCategoryOfObject;
+          });
           (cor.subcategories_of_category as any).push(sub);
         } else {
           sub.rank = newRank;
@@ -366,7 +339,6 @@ export const BatchGradingScreen: React.FC<Props> = ({
     ]
   );
 
-  // ── Category selector items ──────────────────────────────────────────────
   const catItems: SelectorItem[] = categories.map((c) => ({
     id: c._id.toHexString(),
     label: c.name,
@@ -381,7 +353,6 @@ export const BatchGradingScreen: React.FC<Props> = ({
     label: s.name,
   }));
 
-  // ── Render object row ────────────────────────────────────────────────────
   const renderObjectRow = useCallback(
     ({ item: obj, index }: { item: GradeObject; index: number }) => {
       let currentRank: number | null | undefined = null;
@@ -485,7 +456,6 @@ export const BatchGradingScreen: React.FC<Props> = ({
 
   return (
     <View style={styles.container}>
-      {/* ── Header ── */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View style={styles.headerLeft}>
@@ -493,7 +463,7 @@ export const BatchGradingScreen: React.FC<Props> = ({
               {classOfGrading.name}
             </Text>
             <Text style={styles.statsText}>
-              {gradedCount}/{sortedObjects.length} оценено
+              {t("grading.graded_count", { count: gradedCount })}
             </Text>
           </View>
           {onClose && (
@@ -507,7 +477,6 @@ export const BatchGradingScreen: React.FC<Props> = ({
           )}
         </View>
 
-        {/* ── Mode tabs ── */}
         <View style={styles.modeTabs}>
           <TouchableOpacity
             style={[styles.modeTab, mode === "category" && styles.modeTabActive]}
@@ -548,34 +517,31 @@ export const BatchGradingScreen: React.FC<Props> = ({
                 subcategories.length === 0 && styles.modeTabTextDisabled,
               ]}
             >
-              Подкатегория
+              {t("categories.subcategory")}
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* ── Selector row ── */}
         <View style={styles.selectorRow}>
-          {/* Category selector */}
           <TouchableOpacity
             style={styles.selectorChip}
             onPress={() => setCatModalVisible(true)}
             activeOpacity={0.7}
           >
-            <Text style={styles.selectorChipLabel}>Категория</Text>
+            <Text style={styles.selectorChipLabel}>{t("categories.category")}</Text>
             <Text style={styles.selectorChipValue} numberOfLines={1}>
               {selectedCategory?.name ?? "—"}
             </Text>
             <Text style={styles.selectorChipArrow}>›</Text>
           </TouchableOpacity>
 
-          {/* Subcategory selector — shown only in subcategory mode */}
           {mode === "subcategory" && (
             <TouchableOpacity
               style={[styles.selectorChip, styles.selectorChipAccent]}
               onPress={() => setSubModalVisible(true)}
               activeOpacity={0.7}
             >
-              <Text style={styles.selectorChipLabel}>Подкатегория</Text>
+              <Text style={styles.selectorChipLabel}>{t("categories.subcategory")}</Text>
               <Text style={styles.selectorChipValue} numberOfLines={1}>
                 {selectedSubcategory?.name ?? "—"}
               </Text>
@@ -584,22 +550,19 @@ export const BatchGradingScreen: React.FC<Props> = ({
           )}
         </View>
 
-        {/* ── Divider ── */}
         <View style={styles.headerDivider} />
       </View>
 
-      {/* ── Column header ── */}
       <View style={styles.columnHeader}>
         <Text style={styles.columnHeaderPos}>#</Text>
-        <Text style={styles.columnHeaderName}>Объект</Text>
-        <Text style={styles.columnHeaderRank}>Оценка</Text>
+        <Text style={styles.columnHeaderName}>{t("object.object")}</Text>
+        <Text style={styles.columnHeaderRank}>{t("grading.grade")}</Text>
       </View>
 
-      {/* ── Object list ── */}
       {sortedObjects.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateIcon}>📋</Text>
-          <Text style={styles.emptyStateText}>Нет объектов в классе</Text>
+          <Text style={styles.emptyStateText}>{t("class.no_objects")}</Text>
         </View>
       ) : (
         <FlatList
@@ -613,10 +576,9 @@ export const BatchGradingScreen: React.FC<Props> = ({
         />
       )}
 
-      {/* ── Modals ── */}
       <SelectorModal
         visible={catModalVisible}
-        title="Выбери категорию"
+        title={t("grading.select_category")}
         items={catItems}
         selectedId={selectedCategoryId}
         onSelect={handleSelectCategory}
@@ -624,7 +586,7 @@ export const BatchGradingScreen: React.FC<Props> = ({
       />
       <SelectorModal
         visible={subModalVisible}
-        title="Выбери подкатегорию"
+        title={t("grading.select_subcategory")}
         items={subItems}
         selectedId={selectedSubcategoryId}
         onSelect={setSelectedSubcategoryId}
@@ -634,7 +596,6 @@ export const BatchGradingScreen: React.FC<Props> = ({
   );
 };
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
@@ -642,7 +603,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
 
-  // ── Header ──
   header: {
     backgroundColor: Colors.surface,
     paddingTop: Platform.OS === "ios" ? 54 : 16,
@@ -686,7 +646,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  // ── Mode tabs ──
   modeTabs: {
     flexDirection: "row",
     backgroundColor: Colors.inputBackground,
@@ -718,7 +677,6 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
 
-  // ── Selectors ──
   selectorRow: {
     flexDirection: "row",
     gap: 8,
@@ -765,7 +723,6 @@ const styles = StyleSheet.create({
     marginHorizontal: -16,
   },
 
-  // ── Column header ──
   columnHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -803,7 +760,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // ── List ──
   listContent: {
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -814,7 +770,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
 
-  // ── Object row ──
   objectRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -857,7 +812,6 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
 
-  // ── Rank input ──
   rankBadge: {
     width: 64,
     height: 36,
@@ -883,7 +837,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
-  // ── Empty state ──
   emptyState: {
     flex: 1,
     alignItems: "center",
@@ -899,7 +852,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  // ── Modal ──
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.6)",
@@ -936,7 +888,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   modalItemActive: {
-    // subtle
   },
   modalItemText: {
     flex: 1,

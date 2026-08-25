@@ -106,7 +106,6 @@ export default function ObjectCardScreen() {
     return sortedValidTypes.length > 0 ? sortedValidTypes[0] : undefined;
   }, [gradeObject]);
 
-  // 2. Получаем Топ-9 категорий
   const topCategories = useMemo(() => {
     return gradeObject.categories_of_object
       .sorted('rank', true) 

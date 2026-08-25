@@ -1,36 +1,35 @@
 import { GradeObject } from '@/realm/models';
 import React, { useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  ScrollView,
   Dimensions,
+  Image,
   SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withDelay,
   Easing,
   FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
 } from 'react-native-reanimated';
 
-// --- Константы и Цвета ---
 const { width } = Dimensions.get('window');
 const COLORS = {
   background: '#121212',
   card: '#1E1E1E',
   textPrimary: '#FFFFFF',
   textSecondary: '#AAAAAA',
-  leftAccent: '#00E5FF', // Циан для левого объекта
-  rightAccent: '#FF2E63', // Маджента для правого объекта
+  leftAccent: '#00E5FF', 
+  rightAccent: '#FF2E63', 
   draw: '#444444',
 };
 
-// --- Интерфейсы ---
 interface ComparisonProps {
   objectA: GradeObject;
   objectB: GradeObject;
@@ -43,7 +42,6 @@ interface ProcessedCategory {
   rankB: number;
 }
 
-// --- Компонент одной строки сравнения (Bar Chart) ---
 const ComparisonRow = ({
   label,
   valueA,
@@ -58,7 +56,6 @@ const ComparisonRow = ({
   const progressA = useSharedValue(0);
   const progressB = useSharedValue(0);
   
-  // Максимальное значение для нормализации (например, 10 или 100)
   const MAX_RANK = 10; 
 
   useEffect(() => {
@@ -91,7 +88,6 @@ const ComparisonRow = ({
       <Text style={styles.categoryTitle}>{label}</Text>
       
       <View style={styles.barContainer}>
-        {/* Левая часть (Объект A) - выравнивание flex-end чтобы бар рос к центру */}
         <View style={styles.halfBarWrapperLeft}>
           <Text style={[styles.scoreText, isWinA && styles.winnerText, { marginRight: 8 }]}>
             {valueA.toFixed(1)}
@@ -101,10 +97,8 @@ const ComparisonRow = ({
           </View>
         </View>
 
-        {/* Разделитель */}
         <View style={styles.divider} />
 
-        {/* Правая часть (Объект B) */}
         <View style={styles.halfBarWrapperRight}>
           <View style={styles.track}>
             <Animated.View style={[styles.fill, { backgroundColor: COLORS.rightAccent, left: 0 }, styleB]} />
@@ -118,28 +112,24 @@ const ComparisonRow = ({
   );
 };
 
-// --- Основной Компонент ---
 export const Comparison: React.FC<ComparisonProps> = ({ objectA, objectB }) => {
+  const {t} = useTranslation();
   if (!objectA?.isValid() || !objectB?.isValid()) {
     return (
       <View style={styles.container}>
         <Text style={{color: 'white', textAlign: 'center', marginTop: 50}}>
-          Объекты недоступны или были удалены
+          {t("object.invalid_objects")}
         </Text>
       </View>
     );
   }
-  // Хелпер для объединения категорий обоих объектов
   const comparisonData = useMemo(() => {
     const map = new Map<string, ProcessedCategory>();
 
-    // Функция для безопасного добавления
     const processCategories = (obj: GradeObject, isA: boolean) => {
-      // Преобразуем Realm List в массив
       const categories = obj.categories_of_object.map((c) => c);
       
       categories.forEach((catObj) => {
-        // Получаем ID категории (родительской)
         const catId = catObj.category._id.toHexString();
         const catName = catObj.category.name;
         const rank = catObj.rank || 0;
@@ -169,9 +159,7 @@ export const Comparison: React.FC<ComparisonProps> = ({ objectA, objectB }) => {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         
-        {/* HEADER: VS Block */}
         <View style={styles.headerContainer}>
-          {/* Object A */}
           <View style={styles.headerItem}>
             <View style={[styles.imageWrapper, { borderColor: COLORS.leftAccent }]}>
               {objectA.photo ? (
@@ -186,12 +174,10 @@ export const Comparison: React.FC<ComparisonProps> = ({ objectA, objectB }) => {
             </Text>
           </View>
 
-          {/* VS Badge */}
           <View style={styles.vsContainer}>
             <Text style={styles.vsText}>VS</Text>
           </View>
 
-          {/* Object B */}
           <View style={styles.headerItem}>
             <View style={[styles.imageWrapper, { borderColor: COLORS.rightAccent }]}>
                {objectB.photo ? (
@@ -207,9 +193,8 @@ export const Comparison: React.FC<ComparisonProps> = ({ objectA, objectB }) => {
           </View>
         </View>
 
-        {/* COMPARISON LIST */}
         <View style={styles.listContainer}>
-          <Text style={styles.sectionTitle}>Детальное сравнение</Text>
+          <Text style={styles.sectionTitle}>{t("object.detail_comparison")}</Text>
           {comparisonData.map((item, index) => (
             <ComparisonRow
               key={item.id}
@@ -221,17 +206,16 @@ export const Comparison: React.FC<ComparisonProps> = ({ objectA, objectB }) => {
           ))}
         </View>
 
-        {/* SUMMARY / NOTES (Optional) */}
         {objectA.description || objectB.description ? (
             <View style={styles.notesContainer}>
-                <Text style={styles.sectionTitle}>Заметки</Text>
+                <Text style={styles.sectionTitle}>{t("notes.notes")}</Text>
                 <View style={styles.noteBox}>
                     <Text style={[styles.noteLabel, {color: COLORS.leftAccent}]}>{objectA.name}</Text>
-                    <Text style={styles.noteText}>{objectA.description || "Нет описания"}</Text>
+                    <Text style={styles.noteText}>{objectA.description || t("object.no_description")}</Text>
                 </View>
                 <View style={styles.noteBox}>
                     <Text style={[styles.noteLabel, {color: COLORS.rightAccent}]}>{objectB.name}</Text>
-                    <Text style={styles.noteText}>{objectB.description || "Нет описания"}</Text>
+                    <Text style={styles.noteText}>{objectB.description || t("object.no_description")}</Text>
                 </View>
             </View>
         ) : null}
@@ -241,7 +225,6 @@ export const Comparison: React.FC<ComparisonProps> = ({ objectA, objectB }) => {
   );
 };
 
-// --- Стилизация ---
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -250,7 +233,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 40,
   },
-  // Header Styles
   headerContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -290,7 +272,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 4,
-    height: 40, // Фиксированная высота для выравнивания
+    height: 40, 
   },
   totalScore: {
     fontSize: 24,
@@ -313,7 +295,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   
-  // List Styles
   listContainer: {
     paddingHorizontal: 20,
   },
@@ -376,7 +357,7 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontSize: 12,
     fontWeight: '400',
-    fontVariant: ['tabular-nums'], // Чтобы цифры не прыгали
+    fontVariant: ['tabular-nums'],
   },
   winnerText: {
     color: COLORS.textPrimary,
@@ -384,7 +365,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   
-  // Notes
   notesContainer: {
     paddingHorizontal: 20,
     marginTop: 20,

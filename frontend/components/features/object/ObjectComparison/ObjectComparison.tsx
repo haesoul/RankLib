@@ -1,45 +1,41 @@
 import { CategoryOfObject, GradeObject } from '@/realm/models';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
-  View,
-  Text,
-  StyleSheet,
   Dimensions,
   Image,
-  Platform,
+  StyleSheet,
+  Text,
+  View
 } from 'react-native';
 import Animated, {
-  useAnimatedScrollHandler,
-  useSharedValue,
-  useAnimatedStyle,
-  interpolate,
   Extrapolation,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
 } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
 
-const CARD_WIDTH = width * 0.85; // Карточка занимает 85% экрана
-const SPACING = (width - CARD_WIDTH) / 2; // Отступы по бокам для центрирования
+const CARD_WIDTH = width * 0.85; 
+const SPACING = (width - CARD_WIDTH) / 2; 
 const SPACER_ITEM_SIZE = (width - CARD_WIDTH) / 2;
 
 
-/**
- * Компонент для отображения одной строки категории с рангом
- */
 const CategoryRow = ({ item }: { item: CategoryOfObject }) => {
+  const {t} = useTranslation();
   const rank = item.rank || 0;
-  // Цвет ранга: зеленый для высоких, желтый для средних, красный для низких (пример)
   const rankColor = rank >= 8 ? '#4CAF50' : rank >= 5 ? '#FFC107' : '#FF5252';
 
   return (
     <View style={styles.categoryRow}>
       <View style={styles.categoryInfo}>
         <Text style={styles.categoryName} numberOfLines={1}>
-          {item.category?.name || 'Без категории'}
+          {item.category?.name || t('categories.no_categories')}
         </Text>
-        {/* Если есть подкатегории, можно вывести количество или детали */}
         <Text style={styles.subText}>
-           {item.subcategories_of_category.length} подкатегорий
+           {t("categories.sub_count", { count: item.subcategories_of_category.length })}
         </Text>
       </View>
       
@@ -59,10 +55,6 @@ const CategoryRow = ({ item }: { item: CategoryOfObject }) => {
     </View>
   );
 };
-
-/**
- * Карточка одного объекта
- */
 const ComparisonCard = ({
   item,
   index,
@@ -72,7 +64,7 @@ const ComparisonCard = ({
   index: number;
   scrollX: Animated.SharedValue<number>;
 }) => {
-  // Анимация масштабирования и прозрачности при скролле
+  const {t} = useTranslation();
   const rStyle = useAnimatedStyle(() => {
     const inputRange = [
       (index - 1) * CARD_WIDTH,
@@ -100,19 +92,16 @@ const ComparisonCard = ({
     };
   });
 
-  // Обработка пути к фото (FileSystem)
   const imageSource = item.photo
     ? { uri: item.photo.startsWith('file://') ? item.photo : `file://${item.photo}` }
-    : { uri: 'https://via.placeholder.com/150' }; // Заглушка
+    : { uri: 'https://via.placeholder.com/150' };
 
-  // Сортируем категории по рангу (опционально), чтобы лучшее было сверху
   const sortedCategories = item.categories_of_object
     ? Array.from(item.categories_of_object).sort((a, b) => (b.rank || 0) - (a.rank || 0))
     : [];
 
   return (
     <Animated.View style={[styles.cardContainer, rStyle]}>
-      {/* --- Header Карточки --- */}
       <View style={styles.cardHeader}>
         <Image source={imageSource} style={styles.avatar} />
         <View style={styles.headerTextContainer}>
@@ -120,11 +109,10 @@ const ComparisonCard = ({
             {item.name}
           </Text>
           <Text style={styles.objectClass}>
-            {item.class_of_object?.name || 'Класс не указан'}
+            {item.class_of_object?.name || t('class.no_name')}
           </Text>
         </View>
         
-        {/* Общий ранк справа сверху */}
         <View style={styles.totalRankBadge}>
             <Text style={styles.totalRankText}>{item.overall_rank?.toFixed(1) || '-'}</Text>
         </View>
@@ -132,33 +120,29 @@ const ComparisonCard = ({
 
       <View style={styles.divider} />
 
-      {/* --- Body Карточки (Вертикальный скролл) --- */}
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         style={styles.innerScroll}
-        nestedScrollEnabled={true} // Важно для работы внутри горизонтального скролла на Android
+        nestedScrollEnabled={true}
       >
-        <Text style={styles.sectionTitle}>Детализация рангов</Text>
+        <Text style={styles.sectionTitle}>{t('object.detail_ranks')}</Text>
         
         {sortedCategories.map((cat, idx) => (
           <CategoryRow key={cat._id.toString() || idx} item={cat} />
         ))}
 
         {sortedCategories.length === 0 && (
-           <Text style={styles.emptyText}>Нет категорий для сравнения</Text>
+           <Text style={styles.emptyText}>{t('categories.no_categories')}</Text>
         )}
         
-        {/* Дополнительное пространство снизу */}
         <View style={{ height: 20 }} />
       </Animated.ScrollView>
     </Animated.View>
   );
 };
 
-/**
- * Основной экран сравнения
- */
+
 export const ObjectComparison = ({ objects }: { objects: GradeObject[] }) => {
   const scrollX = useSharedValue(0);
 
@@ -168,10 +152,7 @@ export const ObjectComparison = ({ objects }: { objects: GradeObject[] }) => {
     },
   });
 
-  // Добавляем "пустышки" по краям, чтобы первый элемент был по центру
-  // В данном случае используем contentContainerStyle inset, но для snapToInterval
-  // удобнее работать с прямым маппингом.
-  
+
   return (
     <View style={styles.container}>
       <Animated.FlatList
@@ -179,10 +160,10 @@ export const ObjectComparison = ({ objects }: { objects: GradeObject[] }) => {
         keyExtractor={(item) => item._id.toString()}
         horizontal
         showsHorizontalScrollIndicator={false}
-        snapToInterval={CARD_WIDTH} // Карточка "прилипает" к экрану
-        decelerationRate="fast" // Быстрая остановка скролла
+        snapToInterval={CARD_WIDTH}
+        decelerationRate="fast" 
         contentContainerStyle={{
-          paddingHorizontal: SPACING, // Центрирование первого и последнего элемента
+          paddingHorizontal: SPACING,
         }}
         onScroll={onScroll}
         scrollEventThrottle={16}
@@ -203,20 +184,19 @@ export const ObjectComparison = ({ objects }: { objects: GradeObject[] }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212', // Глубокий темный фон
+    backgroundColor: '#121212',
     justifyContent: 'center',
     paddingVertical: 20,
   },
   cardContainer: {
     width: CARD_WIDTH,
-    height: '100%', // Высота карточки внутри контейнера
-    backgroundColor: '#1E1E1E', // Чуть светлее фона (Material Dark Surface)
+    height: '100%',
+    backgroundColor: '#1E1E1E',
     borderRadius: 24,
-    marginRight: 0, // Отступы регулируются FlatList contentContainer
+    marginRight: 0,
     borderWidth: 1,
     borderColor: '#333',
     overflow: 'hidden',
-    // Тени
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -226,7 +206,6 @@ const styles = StyleSheet.create({
     shadowRadius: 15,
     elevation: 10,
   },
-  // --- Header Styles ---
   cardHeader: {
     flexDirection: 'row',
     padding: 20,
@@ -276,7 +255,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#333',
     width: '100%',
   },
-  // --- Inner Scroll Styles ---
   innerScroll: {
     flex: 1,
     backgroundColor: '#1E1E1E',
@@ -291,7 +269,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 15,
   },
-  // --- Category Row Styles ---
   categoryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

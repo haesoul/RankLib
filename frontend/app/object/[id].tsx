@@ -161,7 +161,7 @@ export default function ObjectDetail() {
 
   const objectMenuSections = [
     {
-      title: t('common.edit') || 'Управление', 
+      title: t('common.edit'), 
       items: [
         {
           id: 'edit-main',
@@ -365,36 +365,51 @@ export default function ObjectDetail() {
           </View>
         </Modal>
 
-        <Modal 
-          visible={descriptionModalVisible} 
+        <Modal
+          visible={descriptionModalVisible}
           onClose={() => {
             setDescriptionModalVisible(false);
-            if (object.description) setNewDescription(object.description.toString());  
+
+            if (object.description) {
+              setNewDescription(object.description.toString());
+            }
           }}
         >
-          <View style={styles.headerRow}>
-            <Text style={styles.descriptionText}>{t('common.description')}</Text>
-            <Button onPress={() => setNewDescription('')} style={{width: 42, height: 42, flex: 1, paddingHorizontal: 0}}>
-              <MaterialIcons name="delete" size={22} color="#fff"/>
-            </Button>  
+          <View style={styles.descriptionHeader}>
+            <View style={styles.descriptionWrapper}>
+              <Text style={styles.descriptionText}>
+                {t('common.description')}
+              </Text>
+            </View>
+
+            <Button
+              onPress={() => setNewDescription('')}
+              style={styles.deleteDescriptionButton}
+            >
+              <MaterialIcons name="delete" size={22} color="#fff" />
+            </Button>
           </View>
-          
+
           <Input
             multiline
             numberOfLines={10}
+            inputStyle={{
+              minHeight: 100,
+              textAlignVertical: 'top',
+            }}
             placeholder={t('common.description')}
             value={newDescription}
             onChangeText={setNewDescription}
           />
-          <Button 
-            title={t('common.save')} 
+
+          <Button
+            title={t('common.save')}
             onPress={() => {
               setDescriptionModalVisible(false);
               objectDescriptionService(realm, object, newDescription);
             }}
           />
         </Modal>
-
         <Modal visible={tagsModalVisible} onClose={() => setTagsModalVisible(false)}>
           <Text style={styles.title}>{t('tags.select_tags')}</Text>
           <Text style={[styles.label, {textAlign: 'center', marginBottom: 20}]}>

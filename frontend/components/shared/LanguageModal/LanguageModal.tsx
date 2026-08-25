@@ -1,5 +1,7 @@
 import Button from '@/components/UI/Buttons/Button';
+import { LANGUAGE } from '@/CONSTANTS';
 import { globalLang } from '@/i18n';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -29,6 +31,7 @@ export const LanguageModal: React.FC<LanguageModalProps> = ({ visible, onClose }
 
   const handleLanguageChange = (langCode: string) => {
     i18n.changeLanguage(langCode);
+    AsyncStorage.setItem(LANGUAGE, langCode);
     onClose(); 
   };
 

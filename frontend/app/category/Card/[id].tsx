@@ -1,6 +1,6 @@
 import Button from '@/components/UI/Buttons/Button';
 import { SuccessMessage } from '@/components/UI/ToastMessage/ToastMessage';
-import { Category, LeaderboardEntry } from '@/realm/models'; // Убедитесь, что пути верные
+import { Category, LeaderboardEntry } from '@/realm/models';
 import { Ionicons } from '@expo/vector-icons';
 import { Realm, useObject, useQuery } from '@realm/react';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -199,7 +199,6 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   
-  // === Карточка ===
   captureCard: {
     width: width - 20,
     backgroundColor: '#121214',
@@ -214,9 +213,8 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
 
-  // HEADER (Изменен под Категории)
   cardHeader: {
-    height: 110, // Чуть выше, чтобы вместить две строки текста
+    height: 110, 
     width: '100%',
     backgroundColor: '#1E1E24',
     borderBottomWidth: 1,
@@ -225,7 +223,7 @@ const styles = StyleSheet.create({
   headerBg: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#25252A' // Fallback color
+    backgroundColor: '#25252A'
   },
   headerGradient: {
     flex: 1,
@@ -271,7 +269,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5
   },
 
-  // GRID 3x3 (Без изменений)
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -310,10 +307,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: '60%', // Чуть выше градиент для читаемости
+    height: '60%',
   },
   
-  // Элементы внутри ячейки
   rankBadge: {
     position: 'absolute',
     top: 0,
@@ -354,7 +350,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 
-  // FOOTER
   cardFooter: {
     paddingVertical: 8,
     backgroundColor: '#0E0E10',

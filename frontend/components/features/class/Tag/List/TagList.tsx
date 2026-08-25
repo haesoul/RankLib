@@ -11,10 +11,7 @@ import {
 } from 'react-native';
 import { BSON } from 'realm';
 
-// Импортируйте ваши модели оттуда, где они определены
-// import { ClassOfGrading, Tag } from './models'; 
-// (Я использую классы из вашего промпта, предполагая, что они доступны)
-// import { ClassOfGrading, Tag } from './schemas'; // Замените на ваш путь
+
 import { Colors } from '@/CONSTANTS';
 import { ClassOfGrading, Tag } from '@/realm/models';
 import { useTranslation } from 'react-i18next';
@@ -24,7 +21,6 @@ interface ShowAllTagsOfClassProps {
 
 export const ShowAllTagsOfClass: React.FC<ShowAllTagsOfClassProps> = ({ classId }) => {
   const realm = useRealm();
-  // Преобразуем string в ObjectId, если нужно
   const objectId = typeof classId === 'string' ? new BSON.ObjectId(classId) : classId;
   
   const classObj = useObject(ClassOfGrading, objectId);
@@ -77,34 +73,6 @@ export const ShowAllTagsOfClass: React.FC<ShowAllTagsOfClassProps> = ({ classId 
     setModalVisible(false);
   };
 
-  // const handleDelete = () => {
-  //   if (!editingTagId || !classObj.tags) return;
-
-  //   realm.write(() => {
-  //     const tagToDelete = realm.objectForPrimaryKey("Tag", editingTagId); 
-  //     if (!tagToDelete) return;
-  //     if (!classObj.tags) return;
-
-  //     const objectsWithTag = realm.objects("GradeObject").filtered("ANY tags._id == $0", editingTagId);
-
-  //     objectsWithTag.forEach((obj: any) => {
-  //       const tagIndex = obj.tags.indexOf(tagToDelete);
-  //       if (tagIndex > -1) {
-  //         obj.tags.splice(tagIndex, 1);
-  //       }
-  //     });
-
-  //     const classTagIndex = classObj.tags.findIndex((t) => t._id.equals(editingTagId));
-  //     if (classTagIndex > -1) {
-  //       classObj.tags.splice(classTagIndex, 1);
-  //     }
-
-  //     realm.delete(tagToDelete);
-  //   });
-
-  //   setModalVisible(false);
-  //   setEditingTagId(null);
-  // };
   const handleDelete = () => {
     if (!editingTagId || !classObj.tags) return;
 
@@ -112,13 +80,10 @@ export const ShowAllTagsOfClass: React.FC<ShowAllTagsOfClassProps> = ({ classId 
       const tagToDelete = realm.objectForPrimaryKey("Tag", editingTagId);
       if (!tagToDelete || !classObj.tags) return;
 
-      // ✅ Один запрос находит все объекты с этим тегом.
-      // Realm возвращает живую коллекцию — итерируем снэпшот через Array.from.
       const objectsWithTag = realm.objects("GradeObject")
         .filtered("ANY tags._id == $0", editingTagId);
 
       for (const obj of Array.from(objectsWithTag) as any[]) {
-        // filtered() + batch-delete — быстрее, чем indexOf + splice в цикле
         const tagRefs = obj.tags.filtered("_id == $0", editingTagId);
         realm.delete(tagRefs);
       }
@@ -304,7 +269,6 @@ const styles = StyleSheet.create({
       backgroundColor: Colors.primary,
   },
 
-  // Modal Styling
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',

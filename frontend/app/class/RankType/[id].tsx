@@ -5,6 +5,7 @@ import { ClassOfGrading, RankType } from '@/realm/models';
 import { useObject, useRealm } from '@realm/react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Animated, FlatList, KeyboardAvoidingView, Modal,
   Platform, Pressable, ScrollView, StyleSheet,
@@ -26,6 +27,7 @@ const RankCard: React.FC<{
   rt: RankType; index: number;
   onEdit: () => void; onDelete: () => void;
 }> = ({ rt, index, onEdit, onDelete }) => {
+  const { t } = useTranslation();
   const tx = useRef(new Animated.Value(32)).current;
   const op = useRef(new Animated.Value(0)).current;
 
@@ -46,7 +48,8 @@ const RankCard: React.FC<{
 
       <View style={st.cardBody}>
         <Text style={[st.cardName, { color }]}>{rt.name.toUpperCase()}</Text>
-        <Text style={st.cardFrom}>от {rt.fromRank.toFixed(1)} баллов</Text>
+        <Text style={st.cardFrom}>{t("class.from_rank", { rank: rt.fromRank.toFixed(1) })}</Text>
+
       </View>
 
       <View style={st.cardActions}>
@@ -70,6 +73,7 @@ const FormSheet: React.FC<{
 }> = ({ visible, initial, onSave, onClose }) => {
   const [form, setForm] = useState<FormState>(EMPTY);
   const slide = useRef(new Animated.Value(500)).current;
+  const {t} = useTranslation();
 
   useEffect(() => {
     if (visible) {
@@ -98,7 +102,7 @@ const FormSheet: React.FC<{
             onStartShouldSetResponder={() => true}
           >
             <View style={st.sheetHandle} />
-            <Text style={st.sheetTitle}>{initial ? 'Редактировать' : 'Новый ранг'}</Text>
+            <Text style={st.sheetTitle}>{initial ? t("common.edit") : t("class.create_rank_type")}</Text>
 
             <View style={st.preview}>
               <RankBadge rankType={previewRt} size={80} />
@@ -107,26 +111,26 @@ const FormSheet: React.FC<{
                   {form.name.toUpperCase() || '—'}
                 </Text>
                 <Text style={st.previewSub}>
-                  Старт: {parseFloat(form.fromRank) >= 0 ? parseFloat(form.fromRank).toFixed(1) : '—'}
+                  {t("class.start_rank")} {parseFloat(form.fromRank) >= 0 ? parseFloat(form.fromRank).toFixed(1) : '—'}
                 </Text>
               </View>
             </View>
 
-            <Text style={st.label}>Название</Text>
+            <Text style={st.label}>{t("common.name")}</Text>
             <TextInput
               style={st.input} value={form.name} onChangeText={set('name')}
               placeholder="S, SS, God…" placeholderTextColor={Colors.textSecondary}
               autoCapitalize="characters" maxLength={6}
             />
 
-            <Text style={st.label}>Мин. оценка (0–10)</Text>
+            <Text style={st.label}>{t("class.min_rank")}</Text>
             <TextInput
               style={st.input} value={form.fromRank} onChangeText={set('fromRank')}
               placeholder="9.0" placeholderTextColor={Colors.textSecondary}
               keyboardType="decimal-pad" maxLength={5}
             />
 
-            <Text style={st.label}>Цвет</Text>
+            <Text style={st.label}>{t("class.rank_color")}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
               <View style={{ flexDirection: 'row', gap: 10, paddingVertical: 4 }}>
                 {RANK_COLOR_PRESETS.map(p => (
@@ -152,14 +156,14 @@ const FormSheet: React.FC<{
 
             <View style={st.formBtns}>
               <TouchableOpacity style={st.cancelBtn} onPress={onClose} activeOpacity={0.7}>
-                <Text style={st.cancelTxt}>Отмена</Text>
+                <Text style={st.cancelTxt}>{t("common.cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[st.saveBtn, !isFormValid(form) && { opacity: 0.4 }]}
                 onPress={() => isFormValid(form) && onSave(form)}
                 activeOpacity={isFormValid(form) ? 0.85 : 1}
               >
-                <Text style={st.saveTxt}>Сохранить</Text>
+                <Text style={st.saveTxt}>{t("common.save")}</Text>
               </TouchableOpacity>
             </View>
           </Animated.View>
@@ -174,13 +178,12 @@ export default function RankTypeManagerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const realm  = useRealm();
-
+  const { t } = useTranslation();
   const cls = useObject<ClassOfGrading>('ClassOfGrading', new BSON.ObjectId(id));
 
   const [sheetVisible, setSheetVisible] = useState(false);
   const [editing, setEditing]           = useState<RankType | null>(null);
 
-  // Header entrance
   const hOp = useRef(new Animated.Value(0)).current;
   const hTy = useRef(new Animated.Value(-16)).current;
   useEffect(() => {
@@ -225,27 +228,25 @@ export default function RankTypeManagerScreen() {
   }, [realm]);
 
   if (!cls) return (
-    <View style={st.centered}><Text style={{ color: Colors.textSecondary }}>Класс не найден</Text></View>
+    <View style={st.centered}><Text style={{ color: Colors.textSecondary }}>{t("class.not_found")}</Text></View>
   );
 
   return (
     <SafeAreaView style={st.container}>
 
-      {/* ── Header ── */}
       <Animated.View style={[st.header, { opacity: hOp, transform: [{ translateY: hTy }] }]}>
         <TouchableOpacity style={st.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
           <Text style={st.backTxt}>‹</Text>
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={st.screenTitle}>Типы рангов</Text>
+          <Text style={st.screenTitle}>{t("class.rank_types")}</Text>
           <Text style={st.screenSub} numberOfLines={1}>{cls.name}</Text>
         </View>
         <TouchableOpacity style={st.addBtn} onPress={openCreate} activeOpacity={0.8}>
-          <Text style={st.addTxt}>+ Добавить</Text>
+          <Text style={st.addTxt}>+ {t("common.add")}</Text>
         </TouchableOpacity>
       </Animated.View>
 
-      {/* ── Horizontal legend strip ── */}
       {sorted.length > 0 && (
         <View style={st.legendWrap}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.legendContent}>
@@ -261,14 +262,13 @@ export default function RankTypeManagerScreen() {
         </View>
       )}
 
-      {/* ── List ── */}
       {sorted.length === 0 ? (
         <View style={st.empty}>
           <Text style={{ fontSize: 52 }}>🏅</Text>
-          <Text style={st.emptyTitle}>Нет рангов</Text>
-          <Text style={st.emptySub}>Добавь первый тип ранга{'\n'}для этого класса</Text>
+          <Text style={st.emptyTitle}>{t("common.empty")}</Text>
+          <Text style={st.emptySub}>{t("class.no_rank_types")}</Text>
           <TouchableOpacity style={st.emptyBtn} onPress={openCreate} activeOpacity={0.85}>
-            <Text style={st.emptyBtnTxt}>Создать ранг</Text>
+            <Text style={st.emptyBtnTxt}>{t("class.create_rank_type")}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -298,13 +298,11 @@ export default function RankTypeManagerScreen() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   centered:  { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
-  // Header
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingTop: Platform.OS === 'ios' ? 58 : 20,
@@ -319,16 +317,13 @@ const st = StyleSheet.create({
   addBtn:      { backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.md },
   addTxt:      { color: '#fff', fontSize: 13, fontWeight: '700' },
 
-  // Legend
   legendWrap:    { backgroundColor: Colors.surfaceDarker, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
   legendContent: { paddingHorizontal: 16, paddingVertical: 10, gap: 14, alignItems: 'center' },
   legendItem:    { alignItems: 'center', gap: 4 },
   legendLabel:   { fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
 
-  // List
   list: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 40 },
 
-  // Card
   card: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: Colors.surface,
@@ -344,14 +339,12 @@ const st = StyleSheet.create({
   iconBtn:     { width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.inputBackground, alignItems: 'center', justifyContent: 'center' },
   iconBtnTxt:  { color: Colors.textSecondary, fontSize: 15 },
 
-  // Empty
   empty:      { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 36 },
   emptyTitle: { fontSize: 20, fontWeight: '800', color: Colors.textOffWhite, marginTop: 6 },
   emptySub:   { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
   emptyBtn:   { marginTop: 14, backgroundColor: Colors.primary, paddingHorizontal: 28, paddingVertical: 12, borderRadius: Radius.md },
   emptyBtnTxt:{ color: '#fff', fontSize: 15, fontWeight: '700' },
 
-  // Sheet
   overlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: Colors.surface,
@@ -390,5 +383,4 @@ const st = StyleSheet.create({
   saveBtn:   { flex: 2, paddingVertical: 14, borderRadius: Radius.md, backgroundColor: Colors.primary, alignItems: 'center' },
   saveTxt:   { color: '#fff', fontSize: 15, fontWeight: '800' },
 
-  // missing from Colors reference
 });

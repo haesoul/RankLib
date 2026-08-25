@@ -19,6 +19,12 @@ export const ru = {
       yes: "Да",
       no: "Нет",
       ok: 'Ок',
+      success: "Успешно",
+      info: "Информация",
+      error: "Ошибка",
+      confirm_delete: "Подтвердите удаление",
+      empty: "Пусто",
+      warning: "Предупреждение",
       delete_all: "Удалить все",
       delete_selected: "Удалить выбранное",
       delete_all_confirmation: "Вы точно хотите удалить все данные? Это действие необратимо.",
@@ -40,6 +46,11 @@ export const ru = {
       modes: "Режимы", 
       pro_mode: "Pro режим",
       selected_items: "Выбрано элементов: {{count}}",
+      sharing_unavailable: "Общий доступ недоступен на этом устройстве",
+      sharing_failed: "Не удалось поделиться",
+      gallery_access: "Дай доступ к галерее, иначе как я сохраню?!",
+      saved_to_gallery: "Сохранено в галерею!",
+      save_failed: "Не удалось сохранить фото",
     },
 
     categories: {
@@ -50,17 +61,24 @@ export const ru = {
       no_subcategories: "Нет подкатегорий",
       top_categories: "Топ Категорий",
       categories: "Категории",
+      category: "Категория",
+      subcategory: "Подкатегория",
+      subcategories: "Подкатегории",
       delete: "Удалить категорию",
       delete_sub: "Удалить подкатегорию",
       weight: "Вес",
       change_weight: "Изменить вес",
-      weight_meaning: "Важность категории (Вес)"
+      weight_meaning: "Важность категории (Вес)",
+      cat_count: "{{count}} Категорий",
+      sub_count: "{{count}} подкатегорий",
+      
     },
 
     class: {
       create: "Создать класс",
       create_new: "Создать новый класс",
       create_rank_type: "Создать тип ранга",
+      no_name: "Без названия",
       rank_types: "Типы ранга",
       delete_class: "Удалить класс",
       name_placeholder: "Название класса",
@@ -82,7 +100,14 @@ export const ru = {
       class_card: "Карточка класса",
 
       pro_mode: "Pro режим",
-      
+      no_rank_types: "В этом классе пока нет типов ранга",
+      preview_rank: "Предпросмотр ранга",
+      rank_name: "Название ранга",
+      rank_name_placeholder: "Например: Новичок",
+      start_rank: "Старт:",
+      from_rank: "От {{rank}} баллов",
+      min_rank: "Мин. оценка (0–10)",
+      rank_color: "Цвет"
     },
 
     tags: {
@@ -99,6 +124,7 @@ export const ru = {
       mass_create: "Массовое создание объектов",
       failed_delete: "Не удалось удалить объект",
       object: "Объект",
+      objects: "Объекты",
       deletion: "Удаление объекта",
       deletion_warn_msg: "Удалить объект?",
       auto_calc_cats_based_by_subs: "Автоматический подсчет ранга категорий",
@@ -107,6 +133,10 @@ export const ru = {
       name_placeholder: "Название объекта",
       add_fields: "Добавить поля (макс. 100)",
       compare: "Сравнить объекты",
+      detail_ranks: "Детализация рангов",
+      detail_comparison: "Детальное сравнение",
+      invalid_objects: "Объекты недоступны или были удалены",
+      no_description: "Нет описания",
       card: {
         studio_title: "Студия карточек",
         pick_background: "Выбрать фон",
@@ -142,7 +172,11 @@ export const ru = {
       rank: "Ранг",
       update_rank_placeholder: "Обновить ранг",
       leaderboard: "Таблица лидеров",
-      batch_grading: "Множественная оценка"
+      batch_grading: "Множественная оценка",
+      graded_count: "Оценено объектов: {{count}}",
+      select_category: "Выберите категорию",
+      select_subcategory: "Выберите подкатегорию",
+      highest_rated: "Лучше",
     },
 
     pickImage: {
@@ -179,7 +213,21 @@ export const ru = {
       success_single_object: "Объект \"{{name}}\" создан",
       success_batch_objects: "Создано объектов: {{count}}",
       object_extra_warning: "Категории, медиафайлы, заметки и теги можно добавить только после создания, внутри самого объекта.",
-      class_not_found: "Класс не найден — проверьте id в маршруте"
+      class_not_found: "Класс не найден — проверьте id в маршруте", 
+      name_string_error: 'Поле "name" обязательно и должно быть строкой',
+      priority_number_error: '"priority" должен быть числом >= 1',
+      string_field_error: '"{{field}}" должен быть строкой',
+      batch_array_error: 'Для массового режима JSON должен быть массивом []',
+      batch_empty_error: "Массив не должен быть пустым",
+      json_object_error: 'JSON должен быть объектом {}',
+      invalid_json_error: "Неверный JSON: {{error}}",
+      overall_rank_error: 'Поле "overall_rank" должно быть числом в диапазоне {{MIN_RANK}}–{{MAX_RANK}} (получено {{value}})',
+      element: "Элемент {{index}}",
+      photo_copy_error: "Ошибка копирования фото:",
+      temp_file_delete_error: "Не удалось удалить временный файл фото:",
+      realm_error: "Ошибка Realm: {{error}}",
+      validation_failed: "Ошибка валидации",
+      photo_download_failed: "Не удалось скачать фото: {{error}}",
     }
   },
 };

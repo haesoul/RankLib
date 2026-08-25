@@ -2,11 +2,9 @@ import { ClassOfGrading, GradeObject } from '@/realm/models';
 import * as FileSystem from 'expo-file-system';
 import Realm from 'realm';
 
-// Тип для аргументов: принимаем либо строку, либо BSON.ObjectId, либо сам Realm-объект
 type ClassInput = string | Realm.BSON.ObjectId | ClassOfGrading;
 type ObjectInput = string | Realm.BSON.ObjectId | GradeObject;
 
-// Вспомогательная функция для извлечения строкового ID
 function toId(input: ClassInput | ObjectInput | null | undefined): string {
   if (!input) return '';
   if (typeof input === 'string') return input;
@@ -20,7 +18,6 @@ function toId(input: ClassInput | ObjectInput | null | undefined): string {
 }
 
 export const MediaPaths = {
-  /** Базовая директория медиафайлов */
   root: (): string => {
     return `${FileSystem.documentDirectory}media/`;
   },

@@ -138,11 +138,11 @@ const styles = StyleSheet.create({
     padding: 24,
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)', // Тонкая обводка для "стеклянного" эффекта
-    overflow: 'hidden', // Чтобы градиент не вылезал
+    borderColor: 'rgba(255, 255, 255, 0.1)', 
+    overflow: 'hidden',
   },
   cardSelectedBorder: {
-    borderColor: '#D4AF37', // Золотая обводка при выборе
+    borderColor: '#D4AF37', 
     borderWidth: 2,
   },
   cardHeader: {
@@ -151,14 +151,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 20,
   },
-  // Имитация чипа банковской карты
   chip: {
     width: 50,
     height: 35,
     borderRadius: 6,
-    backgroundColor: '#D4AF37', // Базовое золото
+    backgroundColor: '#D4AF37',
     opacity: 0.9,
-    // Можно добавить внутренний градиент или линии через вложенные View, если нужно детальнее
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.3)',
   },
@@ -185,7 +183,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.7)',
     fontSize: 16,
     fontWeight: '600',
-    letterSpacing: 2, // Широкий трекинг для премиальности
+    letterSpacing: 2, 
     textTransform: 'uppercase',
     marginBottom: 8,
   },
@@ -223,7 +221,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#D4AF37', // Золотые буллиты
+    backgroundColor: '#D4AF37',
     marginRight: 10,
   },
   featureText: {
@@ -232,7 +230,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     lineHeight: 20,
   },
-  // Блик поверх карты
   shineOverlay: {
     ...StyleSheet.absoluteFillObject,
     opacity: 0.3,
@@ -245,7 +242,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#D4AF37', // Золотой круг
+    backgroundColor: '#D4AF37',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',

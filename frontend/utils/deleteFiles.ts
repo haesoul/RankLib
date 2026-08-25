@@ -1,26 +1,3 @@
-// import * as FileSystem from 'expo-file-system';
-
-// export async function deleteFiles(paths?: string | Array<string | null | undefined> | null) {
-//     if (!paths) return;
-
-//     const uris = Array.isArray(paths) ? paths : [paths];
-
-//     const validUris = uris.filter((p): p is string => Boolean(p?.trim()));
-//     if (validUris.length === 0) return;
-
-//     const results = await Promise.allSettled(
-//         validUris.map(path => FileSystem.deleteAsync(path, { idempotent: true }))
-//     );
-
-//     results.forEach((result, index) => {
-//         if (result.status === 'rejected') {
-//             console.error(
-//                 `Опять кривые пути подсовываешь? Не удалось удалить: ${validUris[index]}`, 
-//                 result.reason
-//             );
-//         }
-//     });
-// }
 
 import * as FileSystem from 'expo-file-system';
 

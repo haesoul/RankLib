@@ -28,5 +28,4 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-// Хук для удобного использования в любом месте
 export const useAuth = () => useContext(AuthContext);

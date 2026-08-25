@@ -1,14 +1,14 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useEffect, useRef } from 'react';
 import {
-    Animated,
-    Dimensions,
-    Easing,
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Animated,
+  Dimensions,
+  Easing,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 interface SuccessToastProps {
@@ -17,8 +17,8 @@ interface SuccessToastProps {
   message?: string;
 }
 
-const DARK_ORANGE = '#D35400'; // Темно-оранжевый (Тыквенный)
-const DEEP_BG = '#1E1E1E'; // Фон подложки (если нужно)
+const DARK_ORANGE = '#D35400';
+const DEEP_BG = '#1E1E1E'; 
 
 export const SuccessMessage: React.FC<SuccessToastProps> = ({ 
   visible, 
@@ -30,7 +30,6 @@ export const SuccessMessage: React.FC<SuccessToastProps> = ({
 
   useEffect(() => {
     if (visible) {
-      // Появление: Прозрачность 0->1 и Масштаб 0.8->1
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -45,7 +44,6 @@ export const SuccessMessage: React.FC<SuccessToastProps> = ({
         })
       ]).start();
     } else {
-      // Исчезновение
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: 200,
@@ -54,7 +52,6 @@ export const SuccessMessage: React.FC<SuccessToastProps> = ({
     }
   }, [visible]);
 
-//   if (!visible && fadeAnim?._value === 0) return null; // Оптимизация рендера
 
   return (
     <Modal
@@ -90,9 +87,9 @@ export const SuccessMessage: React.FC<SuccessToastProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: 'center', // По центру экрана
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)', // Затенение фона
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
   container: {
     width: Dimensions.get('window').width * 0.75,
@@ -120,7 +117,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   button: {
-    backgroundColor: 'rgba(0,0,0,0.2)', // Чуть темнее основного цвета
+    backgroundColor: 'rgba(0,0,0,0.2)', 
     paddingVertical: 10,
     paddingHorizontal: 30,
     borderRadius: 30,

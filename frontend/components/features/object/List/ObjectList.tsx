@@ -9,9 +9,9 @@ import Realm from "realm";
 import Button from "@/components/UI/Buttons/Button";
 import Input from "@/components/UI/Input/Input";
 import WarnModal from "@/components/UI/Modal/WarnModal";
-import { Colors } from "@/CONSTANTS";
+import { Colors, OBJECT_VIEW_TYPE } from "@/CONSTANTS";
 import { deleteObject } from "@/services/CRUD/object/object.client";
-import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons'; // <-- Добавили MaterialIcons
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Gesture, GestureDetector, ScrollView } from "react-native-gesture-handler";
@@ -152,7 +152,7 @@ export default function ShowAllObjectsOfClass({ id, onPressObject }: Props) {
 
   useEffect(() => {
     const load = async () => {
-      const type = await AsyncStorage.getItem('objectViewType');
+      const type = await AsyncStorage.getItem(OBJECT_VIEW_TYPE);
       const result = Number(type);
       if (result === 2 || result === 3) setObjectViewType(result);
       else setObjectViewType(2);
@@ -163,7 +163,7 @@ export default function ShowAllObjectsOfClass({ id, onPressObject }: Props) {
 
   useEffect(() => {
     const save = async () => {
-      await AsyncStorage.setItem('objectViewType', objectViewType.toString());
+      await AsyncStorage.setItem(OBJECT_VIEW_TYPE, objectViewType.toString());
     };
     save();
   }, [objectViewType]);

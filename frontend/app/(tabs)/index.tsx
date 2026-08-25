@@ -16,7 +16,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 export default function Home() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const [openCreateClass, setOpenCreateClass] = useState(false);
   const [showSettings, setShowSettings] = useState(false);

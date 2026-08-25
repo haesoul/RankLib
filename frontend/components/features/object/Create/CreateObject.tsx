@@ -165,20 +165,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 12,
-    gap: 10, // Добавил gap для отступа между кнопками
+    gap: 10,
   },
   cancelText: {
-    color: "#F5F5F5", // Обычно отмена белая/серая
+    color: "#F5F5F5",
     fontSize: 16,
     fontWeight: "600",
   },
   createText: {
-    color: "#F5F5F5", // Или акцентный цвет
+    color: "#F5F5F5",
     fontSize: 16,
     fontWeight: "600",
   },
   
-  // --- НОВЫЕ СТИЛИ ДЛЯ ТЭГОВ ---
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -195,7 +194,7 @@ const styles = StyleSheet.create({
     borderColor: '#444',
   },
   tagItemSelected: {
-    backgroundColor: '#4A90E2', // Акцентный цвет (синий) при выборе
+    backgroundColor: '#4A90E2', 
     borderColor: '#4A90E2',
   },
   tagText: {

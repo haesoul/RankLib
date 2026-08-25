@@ -170,7 +170,6 @@ export async function deleteClass(
           realm.delete(cat);
         }
 
-        // висящие записи лидерборда по этому классу
         const entries = realm
           .objects<LeaderboardEntry>("LeaderboardEntry")
           .filtered("classOfGrading._id == $0", cls._id);

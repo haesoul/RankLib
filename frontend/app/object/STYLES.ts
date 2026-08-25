@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     borderColor: '#444',
   },
   tagItemSelected: {
-    backgroundColor: '#4A90E2', // Акцентный цвет (синий) при выборе
+    backgroundColor: '#4A90E2', 
     borderColor: '#4A90E2',
   },
   tagText: {
@@ -274,27 +274,42 @@ const styles = StyleSheet.create({
     fontStyle: 'italic'
   },
   quoteText: {
-    // color: THEME.text,
     fontSize: 17,
     lineHeight: 24,
     fontWeight: '500',
     fontStyle: 'italic',
     marginBottom: 16,
   },
+  descriptionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 18,
+    marginBottom: 10,
+  },
+
   descriptionWrapper: {
     borderLeftWidth: 2,
     borderLeftColor: '#666',
     paddingLeft: 10,
-    marginBottom: 0,
-    marginTop: 18
+    marginTop: 21
   },
+
   descriptionText: {
     color: '#D0D0D0',
     fontSize: 14,
     fontFamily: 'Inter-Light',
     letterSpacing: 0.4,
     lineHeight: 20,
-    // bottom: 15
+  },
+
+  deleteDescriptionButton: {
+    width: 42,
+    height: 42,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalViewContainer: {
     alignItems: 'center',

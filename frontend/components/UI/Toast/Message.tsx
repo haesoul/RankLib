@@ -1,12 +1,13 @@
 import { useMessage } from '@/context/MessageContext';
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
-    Animated,
-    Dimensions,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Animated,
+  Dimensions,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -19,9 +20,9 @@ const MESSAGE_COLORS = {
 };
 
 export default function MessageToast() {
+  const {t} = useTranslation();
   const { message, messageType, clearMessage } = useMessage();
   
-  // Анимации: Прозрачность и Масштаб (для эффекта появления "Pop")
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.8)).current;
 
@@ -32,11 +33,9 @@ export default function MessageToast() {
     let timer: NodeJS.Timeout;
 
     if (message) {
-      // 1. Новое сообщение
       setDisplayMessage(message);
       setDisplayType(messageType);
 
-      // Анимация появления (Fade In + Scale Up)
       Animated.parallel([
         Animated.timing(opacity, {
           toValue: 1,
@@ -51,13 +50,11 @@ export default function MessageToast() {
         }),
       ]).start();
 
-      // 2. Таймер на 5 секунд
       timer = setTimeout(() => {
         handleClose();
       }, 5000);
 
     } else {
-      // Если message очистили извне
       handleClose();
     }
 
@@ -65,7 +62,6 @@ export default function MessageToast() {
   }, [message]);
 
   const handleClose = () => {
-    // Анимация исчезновения (Fade Out + Scale Down)
     Animated.parallel([
       Animated.timing(opacity, {
         toValue: 0,
@@ -78,9 +74,7 @@ export default function MessageToast() {
         useNativeDriver: true,
       }),
     ]).start(() => {
-       // После завершения анимации "убиваем" данные, чтобы компонент размонтировался
        if (message) clearMessage();
-       // Важно сбросить displayMessage, иначе при следующем рендере может мелькнуть старое
        if (!message) setDisplayMessage(null);
     });
   };
@@ -91,10 +85,8 @@ export default function MessageToast() {
 
   return (
     <View style={styles.overlay} pointerEvents="box-none">
-      {/* Затемненный фон (Backdrop) */}
       <Animated.View style={[styles.backdrop, { opacity }]} />
 
-      {/* Само модальное окно */}
       <Animated.View
         style={[
           styles.modalContainer,
@@ -106,26 +98,24 @@ export default function MessageToast() {
         ]}
       >
         <View style={styles.content}>
-          {/* Иконка */}
           <View style={styles.iconWrapper}>
             <Text style={styles.icon}>{theme.icon}</Text>
           </View>
           
           <Text style={[styles.title, { color: theme.accent }]}>
-             {displayType === 'error' ? 'Ошибка' : displayType === 'success' ? 'Успешно' : displayType === 'warn' ? 'Внимание' : 'Информация'}
+             {displayType === 'error' ? t("common.error") : displayType === 'success' ? t("common.success") : displayType === 'warn' ? t("common.warning") : t("common.info")}
           </Text>
           <Text style={styles.message}>
             {displayMessage}
           </Text>
         </View>
 
-        {/* Кнопка внизу во всю ширину */}
         <TouchableOpacity 
           onPress={clearMessage} 
           activeOpacity={0.8}
           style={[styles.button, { backgroundColor: theme.buttonBg }]}
         >
-          <Text style={styles.buttonText}>OK</Text>
+          <Text style={styles.buttonText}>{t("common.ok")}</Text>
         </TouchableOpacity>
         
       </Animated.View>
@@ -135,24 +125,23 @@ export default function MessageToast() {
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject, // Растягиваем на весь экран
+    ...StyleSheet.absoluteFillObject,
     zIndex: 9999,
-    justifyContent: 'center', // Центрируем по вертикали
-    alignItems: 'center',     // Центрируем по горизонтали
+    justifyContent: 'center', 
+    alignItems: 'center',    
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.6)', // Полупрозрачный черный фон
+    backgroundColor: 'rgba(0,0,0,0.6)', 
   },
   modalContainer: {
-    width: width * 0.85, // 85% от ширины экрана
+    width: width * 0.85, 
     maxWidth: 340,
-    backgroundColor: '#18181b', // Zinc-900
+    backgroundColor: '#18181b', 
     borderRadius: 20,
     borderWidth: 1,
-    overflow: 'hidden', // Чтобы кнопка снизу обрезалась по радиусу
+    overflow: 'hidden', 
     
-    // Тени
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.5,
@@ -184,7 +173,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   message: {
-    color: '#A1A1AA', // Zinc-400
+    color: '#A1A1AA', 
     fontSize: 15,
     textAlign: 'center',
     lineHeight: 22,

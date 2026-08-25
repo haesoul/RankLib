@@ -1,3 +1,4 @@
+import { Colors } from "@/CONSTANTS";
 import { ClassOfGrading } from "@/realm/models";
 import { createObject } from "@/services/CRUD/object/object.client";
 import { downloadImageToLocalStorage, isDownloadedTempFile } from "@/utils/downloadImage";
@@ -22,24 +23,7 @@ import {
 } from "react-native";
 import Realm from "realm";
 
-// --- Colors ---
-const Colors = {
-  background: "#000000",
-  backgroundSecondary: "#18181a",
-  surface: "#121212",
-  inputBackground: "#262626",
-  text: "#FFFFFF",
-  textSecondary: "#A0A0A0",
-  primary: "#8B5CF6",
-  accent: "#EC4899",
-  error: "#FF4757",
-  success: "#2ECC71",
-  glass: "rgba(255,255,255,0.04)",
-  glassBorder: "rgba(255,255,255,0.08)",
-  primaryTransparent: "rgba(139, 92, 246, 0.15)",
-};
 
-// --- Types ---
 interface ProObjectPayload {
   name: string;
   photo?: string;
@@ -47,7 +31,6 @@ interface ProObjectPayload {
   description?: string;
 }
 
-// --- Schema Docs ---
 const SCHEMA_DOCS = [
   { field: "name", type: "string", required: true, descKey: "schema_name" },
   { field: "overall_rank", type: "number", required: false, descKey: "schema_overall_rank" },
@@ -75,54 +58,52 @@ const EXAMPLE_JSON_BATCH = `[
   }
 ]`;
 
-// --- Validation ---
-function validateSingle(payload: any): { valid: boolean; error?: string } {
+function validateSingle(payload: any, t: any): { valid: boolean; error?: string } {
   if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
-    return { valid: false, error: 'JSON должен быть объектом {}' };
+    return { valid: false, error: t("pro_mode.json_object_error") };
   }
   if (!payload.name || typeof payload.name !== "string" || !payload.name.trim()) {
-    return { valid: false, error: 'Поле "name" обязательно и должно быть строкой' };
+    return { valid: false, error: t("pro_mode.name_string_error") };
   }
   const MIN_RANK = 0;
   const MAX_RANK = 10;
 
   if (payload.overall_rank !== undefined && payload.overall_rank !== null) {
     if (typeof payload.overall_rank !== "number" || isNaN(payload.overall_rank)) {
-      return { valid: false, error: '"overall_rank" должен быть числом' };
+      return { valid: false, error: t("pro_mode.overall_rank_error", { MIN_RANK, MAX_RANK, value: payload.overall_rank }) };
     }
     if (payload.overall_rank < MIN_RANK || payload.overall_rank > MAX_RANK) {
       return {
         valid: false,
-        error: `"overall_rank" должен быть в диапазоне ${MIN_RANK}–${MAX_RANK} (получено ${payload.overall_rank})`,
+        error: `${t("pro_mode.overall_rank_error", { MIN_RANK, MAX_RANK, value: payload.overall_rank })}`,
       };
     }
   }
   if (payload.description !== undefined && typeof payload.description !== "string") {
-    return { valid: false, error: '"description" должен быть строкой' };
+    return { valid: false, error: t("pro_mode.string_field_error", { field: "description" }) };
   }
   if (payload.photo !== undefined && typeof payload.photo !== "string") {
-    return { valid: false, error: '"photo" должен быть строкой' };
+    return { valid: false, error: t("pro_mode.string_field_error", { field: "photo" }) };
   }
   return { valid: true };
 }
 
-function validateBatch(payload: any): { valid: boolean; error?: string } {
+function validateBatch(payload: any, t: any): { valid: boolean; error?: string } {
   if (!Array.isArray(payload)) {
-    return { valid: false, error: "Для массового режима JSON должен быть массивом []" };
+    return { valid: false, error: t("pro_mode.batch_array_error") };
   }
   if (payload.length === 0) {
-    return { valid: false, error: "Массив не должен быть пустым" };
+    return { valid: false, error: t("pro_mode.batch_empty_error") };
   }
   for (let i = 0; i < payload.length; i++) {
-    const result = validateSingle(payload[i]);
+    const result = validateSingle(payload[i], t);
     if (!result.valid) {
-      return { valid: false, error: `Элемент [${i}]: ${result.error}` };
+      return { valid: false, error: t("pro_mode.element", { index: i }) + ": " + result.error };
     }
   }
   return { valid: true };
 }
 
-// --- Component ---
 export default function ProObjectScreen() {
   const { t } = useTranslation();
   const realm = useRealm();
@@ -180,16 +161,16 @@ export default function ProObjectScreen() {
       parsed = JSON.parse(sanitized);
     } catch (e) {
       setStatus("error");
-      setMessage("Невалидный JSON: " + (e as Error).message);
+      setMessage(t("pro_mode.invalid_json_error", { error: (e as Error).message }));
       return;
     }
 
     if (mode === "single") {
       const objectId = new Realm.BSON.ObjectId();
-      const validation = validateSingle(parsed);
+      const validation = validateSingle(parsed, t);
       if (!validation.valid) {
         setStatus("error");
-        setMessage(validation.error ?? "Ошибка валидации");
+        setMessage(validation.error ?? t("pro_mode.validation_failed"));
         return;
       }
 
@@ -200,7 +181,7 @@ export default function ProObjectScreen() {
         localPhoto = await downloadImageToLocalStorage(payload.photo, { type: "object", classId: classOfGrading._id, objectId: objectId });
       } catch (err) {
         setStatus("error");
-        setMessage("Не удалось скачать фото: " + (err as Error).message);
+        setMessage(t("pro_mode.photo_copy_error") + (err as Error).message);
         return;
       }
 
@@ -218,21 +199,20 @@ export default function ProObjectScreen() {
         });
         if (isDownloadedTempFile(localPhoto)) {
           FileSystem.deleteAsync(localPhoto!, { idempotent: true }).catch((e: any) =>
-            console.warn("Не удалось удалить временный файл фото:", e)
+            console.warn(t("pro_mode.temp_file_delete_error"), e)
           );
         }
         setStatus("success");
         setMessage(t("pro_mode.success_single_object", { name: payload.name.trim() }));
       } catch (err) {
         setStatus("error");
-        setMessage("Ошибка Realm: " + (err as Error).message);
+        setMessage(t("pro_mode.realm_error") + (err as Error).message);
       }
     } else {
-      // Batch mode
-      const validation = validateBatch(parsed);
+      const validation = validateBatch(parsed, t);
       if (!validation.valid) {
         setStatus("error");
-        setMessage(validation.error ?? "Ошибка валидации");
+        setMessage(validation.error ?? t("pro_mode.validation_failed"));
         return;
       }
 
@@ -266,7 +246,7 @@ export default function ProObjectScreen() {
         downloadedPhotos.forEach((photoPath) => {
           if (isDownloadedTempFile(photoPath)) {
             FileSystem.deleteAsync(photoPath!, { idempotent: true }).catch((e: any) =>
-              console.warn("Не удалось удалить временный файл фото:", e)
+              console.warn(t("pro_mode.temp_file_delete_error"), e)
             );
           }
         });
@@ -279,7 +259,7 @@ export default function ProObjectScreen() {
         );
       } catch (err) {
         setStatus("error");
-        setMessage("Ошибка Realm: " + (err as Error).message);
+        setMessage(t("pro_mode.realm_error") + (err as Error).message);
       }
     }
   };
@@ -319,7 +299,6 @@ export default function ProObjectScreen() {
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header */}
           <View style={styles.header}>
             <View style={styles.proBadge}>
               <Text style={styles.proBadgeText}>PRO</Text>
@@ -330,7 +309,6 @@ export default function ProObjectScreen() {
             </Text>
           </View>
 
-          {/* Mode switcher */}
           <View style={styles.modeSwitcher}>
             <TouchableOpacity
               style={[styles.modeBtn, mode === "single" && styles.modeBtnActive]}
@@ -352,7 +330,6 @@ export default function ProObjectScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Docs toggle */}
           <TouchableOpacity
             style={styles.docsToggle}
             onPress={() => setDocsExpanded((v) => !v)}
@@ -388,7 +365,6 @@ export default function ProObjectScreen() {
             </View>
           )}
 
-          {/* JSON Input */}
           <View style={styles.inputWrapper}>
             <View style={styles.inputHeader}>
               <Text style={styles.inputLabel}>Script</Text>
@@ -418,7 +394,6 @@ export default function ProObjectScreen() {
             />
           </View>
 
-          {/* Status message */}
           {message && (
             <Animated.View
               style={[
@@ -434,7 +409,6 @@ export default function ProObjectScreen() {
             </Animated.View>
           )}
 
-          {/* Execute button */}
           <TouchableOpacity
             style={[styles.execBtn, status === "loading" && styles.execBtnDisabled]}
             onPress={handleExecute}

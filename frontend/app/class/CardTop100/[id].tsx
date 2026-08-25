@@ -20,12 +20,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
-// Цвета для рангов
 const RANK_COLORS = {
-  1: { border: '#FFD700', bg: 'rgba(255, 215, 0, 0.15)', text: '#FFD700' }, // Gold
-  2: { border: '#C0C0C0', bg: 'rgba(192, 192, 192, 0.15)', text: '#C0C0C0' }, // Silver
-  3: { border: '#CD7F32', bg: 'rgba(205, 127, 50, 0.15)', text: '#CD7F32' }, // Bronze
-  default: { border: '#3A3A45', bg: '#1E1E24', text: '#A0A0A5' } // Common
+  1: { border: '#FFD700', bg: 'rgba(255, 215, 0, 0.15)', text: '#FFD700' },
+  2: { border: '#C0C0C0', bg: 'rgba(192, 192, 192, 0.15)', text: '#C0C0C0' },
+  3: { border: '#CD7F32', bg: 'rgba(205, 127, 50, 0.15)', text: '#CD7F32' }, 
+  default: { border: '#3A3A45', bg: '#1E1E24', text: '#A0A0A5' } 
 };
 
 export default function ClassCardScreen() {
@@ -34,14 +33,11 @@ export default function ClassCardScreen() {
 
   const {t, i18n} = useTranslation()
 
-  // Получаем сам класс
   const classData = useObject(ClassOfGrading, new Realm.BSON.ObjectId(id));
 
-  // Логика сортировки и фильтрации ТОП-9
   const topObjects = useMemo(() => {
     if (!classData || !classData.objects) return [];
     
-    // Сортируем по overall_rank (desc), берем топ 9
     return classData.objects
       .sorted("overall_rank", true)
       .slice(0, 100);
@@ -102,9 +98,9 @@ export default function ClassCardScreen() {
             <Text style={styles.objectName} numberOfLines={1}>
               {item.name || "Unknown Object"}
             </Text>
-            <Text style={styles.objectSubDetails}>
+            {/* <Text style={styles.objectSubDetails}>
               {item.object_name || "No details"}
-            </Text>
+            </Text> */}
           </View>
         </View>
 
@@ -147,7 +143,6 @@ export default function ClassCardScreen() {
         </ImageBackground>
       </View>
 
-      {/* Список лидеров */}
       <FlatList
         data={topObjects}
         keyExtractor={(item) => item._id.toString()}
@@ -159,10 +154,10 @@ export default function ClassCardScreen() {
         windowSize={5}
         removeClippedSubviews={true}
         ListHeaderComponent={() => (
-          <Text style={styles.listHeader}>Highest Rated {classData.objectsName ?? "Objects"}</Text>
+          <Text style={styles.listHeader}>{t('grading.highest_rated')} {classData.objectsName ?? t('object.objects')}</Text>
         )}
         ListEmptyComponent={() => (
-          <Text style={styles.emptyText}>No objects rated yet.</Text>
+          <Text style={styles.emptyText}>{t('class.no_objects')}</Text>
         )}
       />
     </View>
@@ -172,7 +167,7 @@ export default function ClassCardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D0D10', // Очень темный фон
+    backgroundColor: '#0D0D10',
   },
   errorText: {
     color: 'red',
@@ -180,7 +175,6 @@ const styles = StyleSheet.create({
     marginTop: 50,
     fontSize: 18,
   },
-  // Header Styles
   headerContainer: {
     height: 250,
     width: '100%',
@@ -236,7 +230,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
   
-  // List Styles
   listContent: {
     padding: 16,
     paddingBottom: 40,
@@ -256,14 +249,12 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 
-  // Card Styles
   cardItem: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
     borderRadius: 12,
     padding: 12,
-    // Тени для объема
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -310,7 +301,7 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 10,
     borderWidth: 1,
-    padding: 2, // отступ для рамки
+    padding: 2,
     marginRight: 12,
   },
   avatar: {

@@ -64,7 +64,7 @@ export default function ObjectCardScreen() {
   if (!objectId || !obj) {
     return (
       <View style={[s.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: Colors.textSecondary }}>Объект не найден</Text>
+        <Text style={{ color: Colors.textSecondary }}>{t("object.not_found")}</Text>
       </View>
     );
   }
@@ -135,7 +135,7 @@ export default function ObjectCardScreen() {
 
           {topCategories.length > 0 && (
             <Animated.View style={[s.gridWrap, { opacity: gridOp }]}>
-              <Text style={s.gridTitle}>Топ категорий</Text>
+              <Text style={s.gridTitle}>{t("categories.top_categories")}</Text>
               <View style={s.grid}>
                 {topCategories.map((coo, i) => {
                   const v = coo.rank ?? 0;

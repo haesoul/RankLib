@@ -2,6 +2,8 @@ import * as Localization from 'expo-localization';
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
+import { LANGUAGE } from '@/CONSTANTS';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import en from './en';
 import es from './es';
 import fr from './fr';
@@ -10,12 +12,13 @@ import { ru } from './ru';
 import zh from './zh';
 
 const resources = {
-  ru,
-  // zh,
-  // en,
-  // fr,
-  // ja,
-  // es,
+  ru, 
+  en,  
+  es,
+  zh,
+  fr,
+  ja,
+
 };
 
 const systemLanguage = Localization.getLocales()[0]?.languageCode ?? 'ru';
@@ -30,8 +33,21 @@ i18n
       escapeValue: false,
     },
   });
+export const loadSavedLanguage = async () => {
+  try {
+    const savedLanguage = await AsyncStorage.getItem(LANGUAGE);
+    if (savedLanguage) {
+      await i18n.changeLanguage(savedLanguage);
+    }
+  } catch (error) {
+    console.error('Failed to load saved language:', error);
+  }
+};
+
+loadSavedLanguage();
 
 export default i18n;
+
 
 
 declare module 'i18next' {

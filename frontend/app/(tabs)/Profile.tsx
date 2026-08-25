@@ -20,7 +20,7 @@ export default function Profile() {
         loading: false, 
         phase: "", 
         percentage: 0,
-        operation: "" // "export" или "import"
+        operation: ""
     });
     const { isAuth } = useAuth();
     
@@ -32,10 +32,6 @@ export default function Profile() {
         getToken();
     }, []);
 
-    /**
-     * ЭКСПОРТ: Realm → Django
-     * Отправляет данные из локальной базы на сервер
-     */
     const handleExport = async () => {
         setSyncStatus({ loading: true, phase: "", percentage: 0, operation: "export" });
         
@@ -73,12 +69,7 @@ export default function Profile() {
         }
     };
 
-    /**
-     * ИМПОРТ: Django → Realm
-     * Загружает данные с сервера в локальную базу
-     */
     const handleImport = async (clearExisting: boolean = false, downloadFiles: boolean = false) => {
-        // Подтверждение при очистке существующих данных
         if (clearExisting) {
             Alert.alert(
                 "⚠️ Внимание",
@@ -136,9 +127,6 @@ export default function Profile() {
         }
     };
 
-    /**
-     * Получить читаемое название фазы
-     */
     const getPhaseLabel = (phase: string, operation: string): string => {
         const labels: Record<string, string> = {
             // Экспорт
@@ -165,7 +153,6 @@ export default function Profile() {
             <ScrollView contentContainerStyle={styles.scrollContent}>
                 <Text style={styles.title}>Личный кабинет</Text>
                 
-                {/* Индикатор прогресса */}
                 {syncStatus.loading && (
                     <View style={styles.progressContainer}>
                         <ActivityIndicator size="large" color="#007AFF" />
@@ -185,10 +172,8 @@ export default function Profile() {
                     </View>
                 )}
                 
-                {/* Кнопки синхронизации */}
                 {!syncStatus.loading && (
                     <View style={styles.buttonsContainer}>
-                        {/* ЭКСПОРТ */}
                         <View style={styles.section}>
                             <Text style={styles.sectionTitle}>📤 Экспорт данных (Realm → Django)</Text>
                             <Text style={styles.sectionDescription}>
@@ -199,14 +184,12 @@ export default function Profile() {
                             </Button>
                         </View>
                         
-                        {/* ИМПОРТ */}
                         <View style={styles.section}>
                             <Text style={styles.sectionTitle}>📥 Импорт данных (Django → Realm)</Text>
                             <Text style={styles.sectionDescription}>
                                 Загрузить данные с сервера в локальную базу.
                             </Text>
                             
-                            {/* Импорт с объединением */}
                             <Button 
                                 onPress={() => handleImport(false, false)} 
                                 style={[styles.button, styles.buttonSecondary]}
@@ -214,7 +197,6 @@ export default function Profile() {
                                 <Text style={styles.buttonText}>Импортировать (объединить)</Text>
                             </Button>
                             
-                            {/* Импорт с очисткой */}
                             <Button 
                                 onPress={() => handleImport(true, false)} 
                                 style={[styles.button, styles.buttonDanger]}
@@ -222,7 +204,6 @@ export default function Profile() {
                                 <Text style={styles.buttonText}>Импортировать (очистить локальную БД)</Text>
                             </Button>
                             
-                            {/* Импорт с файлами */}
                             <Button 
                                 onPress={() => handleImport(false, true)} 
                                 style={[styles.button, styles.buttonSecondary]}
@@ -264,7 +245,6 @@ const styles = StyleSheet.create({
         color: '#333',
     },
     
-    // Progress
     progressContainer: {
         backgroundColor: '#FFF',
         borderRadius: 12,
@@ -308,7 +288,6 @@ const styles = StyleSheet.create({
         borderRadius: 4,
     },
     
-    // Buttons
     buttonsContainer: {
         gap: 20,
     },
@@ -353,7 +332,6 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     
-    // Info
     infoContainer: {
         backgroundColor: '#FFF9E6',
         borderRadius: 12,

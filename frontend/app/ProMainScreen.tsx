@@ -92,38 +92,37 @@ const EXAMPLE_JSON_BATCH = `[
   }
 ]`;
 
-// --- Validation ---
-function validateSingle(payload: any): { valid: boolean; error?: string } {
+function validateSingle(payload: any, t: any): { valid: boolean; error?: string } {
   if (typeof payload !== "object" || Array.isArray(payload)) {
-    return { valid: false, error: 'JSON должен быть объектом {}' };
+    return { valid: false, error: t("pro_mode.json_object_error") };
   }
   if (!payload.name || typeof payload.name !== "string" || !payload.name.trim()) {
-    return { valid: false, error: 'Поле "name" обязательно и должно быть строкой' };
+    return { valid: false, error: t("pro_mode.name_string_error") };
   }
   if (payload.priority !== undefined) {
     const p = Number(payload.priority);
     if (isNaN(p) || p < 1) {
-      return { valid: false, error: '"priority" должен быть числом >= 1' };
+      return { valid: false, error: t("pro_mode.priority_number_error") };
     }
   }
   const strFields = ["noteName", "notesName", "objectName", "objectsName"];
   for (const f of strFields) {
     if (payload[f] !== undefined && typeof payload[f] !== "string") {
-      return { valid: false, error: `"${f}" должен быть строкой` };
+      return { valid: false, error: t("pro_mode.string_field_error", { field: f }) };
     }
   }
   return { valid: true };
 }
 
-function validateBatch(payload: any): { valid: boolean; error?: string } {
+function validateBatch(payload: any, t: any): { valid: boolean; error?: string } {
   if (!Array.isArray(payload)) {
-    return { valid: false, error: "Для массового режима JSON должен быть массивом []" };
+    return { valid: false, error: t("pro_mode.batch_array_error") };
   }
   if (payload.length === 0) {
-    return { valid: false, error: "Массив не должен быть пустым" };
+    return { valid: false, error: t("pro_mode.batch_empty_error") };
   }
   for (let i = 0; i < payload.length; i++) {
-    const result = validateSingle(payload[i]);
+    const result = validateSingle(payload[i], t);
     if (!result.valid) {
       return { valid: false, error: `Элемент [${i}]: ${result.error}` };
     }
@@ -167,19 +166,18 @@ export default function ProMainScreen() {
     try {
       const sanitized = jsonText.replace(/,(\s*[}\]])/g, "$1");
       parsed = JSON.parse(sanitized);
-      // parsed = JSON.parse(jsonText);
     } catch (e) {
       setStatus("error");
-      setMessage("Невалидный JSON: " + (e as Error).message);
+      setMessage(t("pro_mode.invalid_json_error", { error: (e as Error).message }));
       return;
     }
 
     if (mode === "single") {
       const id = new Realm.BSON.ObjectId()
-      const validation = validateSingle(parsed);
+      const validation = validateSingle(parsed, t);
       if (!validation.valid) {
         setStatus("error");
-        setMessage(validation.error ?? "Ошибка валидации");
+        setMessage(validation.error ?? t("pro_mode.validation_failed"));
         return;
       }
 
@@ -190,7 +188,7 @@ export default function ProMainScreen() {
         localPhoto = await downloadImageToLocalStorage(payload.photo, {type: "class", classId: id});
       } catch (err) {
         setStatus("error");
-        setMessage("Не удалось скачать фото: " + (err as Error).message);
+        setMessage(t("pro_mode.photo_download_failed", { error: (err as Error).message }));
         return;
       }
 
@@ -214,14 +212,14 @@ export default function ProMainScreen() {
         setMessage(t("pro_mode.success_single", { name: payload.name.trim() }));
       } catch (err) {
         setStatus("error");
-        setMessage("Ошибка Realm: " + (err as Error).message);
+        setMessage(t("pro_mode.realm_error", { error: (err as Error).message }));
       }
     } else {
       // Batch mode
-      const validation = validateBatch(parsed);
+      const validation = validateBatch(parsed, t);
       if (!validation.valid) {
         setStatus("error");
-        setMessage(validation.error ?? "Ошибка валидации");
+        setMessage(validation.error ?? t("pro_mode.validation_failed"));
         return;
       }
 
@@ -261,7 +259,7 @@ export default function ProMainScreen() {
         );
       } catch (err) {
         setStatus("error");
-        setMessage("Ошибка Realm: " + (err as Error).message);
+        setMessage(t("pro_mode.realm_error", { error: (err as Error).message }));
       }
     }
   };
@@ -287,7 +285,6 @@ export default function ProMainScreen() {
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header */}
           <View style={styles.header}>
             <View style={styles.proBadge}>
               <Text style={styles.proBadgeText}>PRO</Text>
@@ -296,7 +293,6 @@ export default function ProMainScreen() {
             <Text style={styles.subtitle}>{t("pro_mode.json_executor")}</Text>
           </View>
 
-          {/* Mode switcher */}
           <View style={styles.modeSwitcher}>
             <TouchableOpacity
               style={[styles.modeBtn, mode === "single" && styles.modeBtnActive]}
@@ -318,7 +314,6 @@ export default function ProMainScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Docs toggle */}
           <TouchableOpacity
             style={styles.docsToggle}
             onPress={() => setDocsExpanded((v) => !v)}
@@ -354,7 +349,6 @@ export default function ProMainScreen() {
             </View>
           )}
 
-          {/* JSON Input */}
           <View style={styles.inputWrapper}>
             <View style={styles.inputHeader}>
               <Text style={styles.inputLabel}>Script</Text>
@@ -384,7 +378,6 @@ export default function ProMainScreen() {
             />
           </View>
 
-          {/* Status message */}
           {message && (
             <Animated.View
               style={[
@@ -400,7 +393,6 @@ export default function ProMainScreen() {
             </Animated.View>
           )}
 
-          {/* Execute button */}
           <TouchableOpacity
             style={[styles.execBtn, status === "loading" && styles.execBtnDisabled]}
             onPress={handleExecute}

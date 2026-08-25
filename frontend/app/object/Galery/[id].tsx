@@ -112,26 +112,6 @@ export default function GalleryScreen() {
       return () => subscription.remove();
     }, [isMultiSelectMode]),
   );
-  // const measurePitches = () => {
-  //   if (item0Ref.current && item1Ref.current) {
-  //     item0Ref.current.measure((_x0, _y0, _w0, _h0, pageX0) => {
-  //       item1Ref.current?.measure((_x1, _y1, _w1, _h1, pageX1) => {
-  //         colPitch.value = Math.abs(pageX1 - pageX0);
-  //       });
-  //     });
-  //   }
-  //   if (item0Ref.current && itemRowRef.current) {
-  //     item0Ref.current.measure((_x0, _y0, _w0, _h0, _pageX0, pageY0) => {
-  //       itemRowRef.current?.measure((_x1, _y1, _w1, _h1, _pageX1, pageY1) => {
-  //         rowPitch.value = Math.abs(pageY1 - pageY0);
-  //       });
-  //     });
-  //   }
-  //   if (media.length <= NUM_COLUMNS) {
-  //     rowPitch.value = tileSize + ITEM_MARGIN * 2;
-  //     return;
-  //   }
-  // };
 
   const applyDragRange = (anchorIndex: number, currentIndex: number) => {
     if (!media.length || anchorIndex < 0) return;
@@ -225,7 +205,7 @@ export default function GalleryScreen() {
     try {
       const isAvailable = await Sharing.isAvailableAsync();
       if (!isAvailable) {
-        Alert.alert(t('error', 'Ошибка'), t('sharing_unavailable', 'Шаринг недоступен на этом устройстве'));
+        Alert.alert(t('error', 'Ошибка'), t('common.sharing_unavailable'));
         return;
       }
       
@@ -238,7 +218,7 @@ export default function GalleryScreen() {
       await Sharing.shareAsync(uriToShare);
     } catch (e) {
       console.log(e);
-      Alert.alert(t('error', 'Ошибка'), t('sharing_failed', 'Не удалось поделиться'));
+      Alert.alert(t('error', 'Ошибка'), t('common.sharing_failed'));
     }
   };
 
@@ -250,7 +230,7 @@ export default function GalleryScreen() {
       const { status } = await MediaLibrary.requestPermissionsAsync();
       
       if (status !== 'granted') {
-        Alert.alert(t('error', 'Внимание'), t('permission_needed', 'Дай доступ к галерее, иначе как я сохраню?!'));
+        Alert.alert(t('error', 'Внимание'), t('common.gallery_access'));
         return;
       }
 
@@ -263,13 +243,12 @@ export default function GalleryScreen() {
       }
 
       await MediaLibrary.saveToLibraryAsync(uriToSave);
-      // Alert.alert(t('success', 'Успешно'), t('saved_to_gallery', 'Сохранено в галерею!'));
-      setMessageModalText(t('saved_to_gallery', 'Сохранено в галерею!'));
+      setMessageModalText(t('common.saved_to_gallery'));
       setMessageModalType('success');
       setMessageModalVisible(true);
     } catch (e) {
       console.log(e);
-      Alert.alert(t('error', 'Ошибка'), t('save_failed', 'Не удалось сохранить фото'));
+      Alert.alert(t('error', 'Ошибка'), t('common.save_failed'));
     } finally {
       if (fileUri) {
         await deleteFiles(fileUri);
@@ -280,13 +259,6 @@ export default function GalleryScreen() {
   const renderGridItem = ({ item, index }: { item: any; index: number }) => {
     const uri = item.thumbnailUri || item.uri;
     const isSelected = selectedIndexes.includes(index);
-
-    // const measureRef =
-    //   index === 0 ? item0Ref :
-    //   index === 1 ? item1Ref :
-    //   index === NUM_COLUMNS ? itemRowRef :
-    //   undefined;
-
     return (
         <View collapsable={false}>
           <Pressable
@@ -504,7 +476,6 @@ export default function GalleryScreen() {
           visible={messageModalVisible} 
           onClose={() => setMessageModalVisible(false)} 
           message={messageModalText} 
-          // type={messageModalType}
         />
       </View>
     </View>

@@ -505,7 +505,7 @@ const localStyles = StyleSheet.create({
   },
   deleteSelectedText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '500',
   },
 

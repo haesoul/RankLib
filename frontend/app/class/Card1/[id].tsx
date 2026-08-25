@@ -82,7 +82,7 @@ export default function ClassCardScreen() {
 
   const gridItems = [...topNineObjects];
   while (gridItems.length < 9) {
-    // @ts-ignore - заглушка
+    // @ts-ignore
     gridItems.push(null);
   }
 
@@ -205,7 +205,6 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   
-  // === Стили самой карточки (для экспорта) ===
   captureCard: {
     width: width - 20, 
     backgroundColor: '#121214',
@@ -220,7 +219,6 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
 
-  // HEADER
   cardHeader: {
     height: 100,
     width: '100%',
@@ -272,7 +270,6 @@ const styles = StyleSheet.create({
     fontWeight: '500'
   },
 
-  // GRID 3x3
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -314,7 +311,6 @@ const styles = StyleSheet.create({
     height: '50%',
   },
   
-  // Элементы внутри ячейки
   rankBadge: {
     position: 'absolute',
     top: 0,
@@ -355,7 +351,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 
-  // FOOTER
   cardFooter: {
     paddingVertical: 8,
     backgroundColor: '#0E0E10',

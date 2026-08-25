@@ -6,14 +6,14 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 
-const RADAR_MAX = 10; // adjust if your rank field uses a different scale
+const RADAR_MAX = 10;
 
 interface ObjectExportCardProps {
   obj: GradeObject;
   backgroundUri?: string | null;
-  backgroundOpacity?: number;   // 0..1, default 0.4
+  backgroundOpacity?: number;  
   overlayUri?: string | null;
-  overlayEditable?: boolean;    // shows the drag/pinch border while true
+  overlayEditable?: boolean;
   showScore?: boolean;
   showRank?: boolean;
 }
@@ -52,8 +52,16 @@ export const ObjectExportCard = forwardRef<View, ObjectExportCardProps>(function
       <View style={s.content}>
         <Text style={s.name} numberOfLines={2}>{obj.name}</Text>
 
-        <DecagonRadarChart axes={axes} maxValue={RADAR_MAX} size={250} fillColor={rankColor + '55'} strokeColor={rankColor} />
-
+        {/* <DecagonRadarChart axes={axes} maxValue={RADAR_MAX} size={250} fillColor={rankColor + '55'} strokeColor={rankColor} /> */}
+        <View style={s.radarWrap}>
+          <DecagonRadarChart
+            axes={axes}
+            maxValue={RADAR_MAX}
+            size={210}
+            fillColor={rankColor + '55'}
+            strokeColor={rankColor}
+          />
+        </View>
         {(showScore || showRank) && (
           <View style={s.statsRow}>
             {showScore && (
@@ -121,7 +129,7 @@ function OverlayImage({ uri, editable }: { uri: string; editable: boolean }) {
 const s = StyleSheet.create({
   card: {
     width: '100%',
-    aspectRatio: 4 / 5,
+    aspectRatio: 3 / 4,
     borderRadius: Radius.xxl,
     overflow: 'hidden',
     backgroundColor: '#10101c',
@@ -138,4 +146,9 @@ const s = StyleSheet.create({
   overlayWrap: { position: 'absolute', left: '50%', top: '50%', marginLeft: -80, marginTop: -80, width: 160, height: 160 },
   overlayEditingBorder: { borderWidth: 1.5, borderColor: Colors.accent, borderStyle: 'dashed', borderRadius: 8 },
   overlayImage: { width: '100%', height: '100%' },
+  radarWrap: {
+    position: 'absolute',
+    top: 55,
+    right: 4,
+  },
 });

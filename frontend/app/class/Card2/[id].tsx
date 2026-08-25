@@ -1,6 +1,6 @@
 import Button from '@/components/UI/Buttons/Button';
 import { SuccessMessage } from '@/components/UI/ToastMessage/ToastMessage';
-import { ClassOfGrading, GradeObject } from '@/realm/models'; // Проверь путь к моделям
+import { ClassOfGrading, GradeObject } from '@/realm/models';
 import { Ionicons } from '@expo/vector-icons';
 import { Realm, useObject, useQuery } from '@realm/react';
 import { LinearGradient } from 'expo-linear-gradient';

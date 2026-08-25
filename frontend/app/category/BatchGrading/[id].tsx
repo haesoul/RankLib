@@ -1,4 +1,3 @@
-
 import { RankInput } from "@/components/UI/Input/RankInput";
 import { SelectorItem, SelectorModal } from "@/components/UI/Modal/SelectorModal";
 import { Colors } from "@/CONSTANTS";
@@ -7,23 +6,31 @@ import { writeCategoryRank, writeSubcategoryRank } from "@/tools/categoryService
 import { GradeMode, getObjectRank, sortObjectsByRank } from "@/tools/rankUtils";
 import { useObject, useRealm } from "@realm/react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   FlatList,
   KeyboardAvoidingView,
+  LayoutAnimation,
   Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
+  UIManager,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Realm } from "realm";
 
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 export default function BatchGradingPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const realm = useRealm();
+  const { t } = useTranslation();
 
   const classOfGrading = useObject<ClassOfGrading>(
     "ClassOfGrading",
@@ -40,8 +47,11 @@ export default function BatchGradingPage() {
   const [subcategoryId, setSubcategoryId] = useState(
     () => Array.from(categories[0]?.subcategories ?? [])[0]?._id.toHexString() ?? ""
   );
+  
   const [catModal, setCatModal] = useState(false);
   const [subModal, setSubModal] = useState(false);
+  
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const selectedCategory = useMemo(
     () => categories.find((c) => c._id.toHexString() === categoryId),
@@ -55,10 +65,7 @@ export default function BatchGradingPage() {
     () => subcategories.find((s) => s._id.toHexString() === subcategoryId),
     [subcategories, subcategoryId]
   );
-useEffect(() => {
-    console.log("mounted");
-    return () => console.log("unmounted");
-}, []);
+
   const handleSelectCategory = useCallback((id: string) => {
     setCategoryId(id);
     setMode("category");
@@ -70,20 +77,24 @@ useEffect(() => {
   const sortedObjects = useMemo(() => {
     if (!classOfGrading) return [];
     return sortObjectsByRank(Array.from(classOfGrading.objects), mode, categoryId, subcategoryId);
-  }, [classOfGrading, mode, categoryId, subcategoryId]);
+  }, [classOfGrading, mode, categoryId, subcategoryId, refreshTrigger]);
 
   const gradedCount = useMemo(
     () => sortedObjects.filter((o) => getObjectRank(o, mode, categoryId, subcategoryId) != null).length,
-    [sortedObjects, mode, categoryId, subcategoryId]
+    [sortedObjects, mode, categoryId, subcategoryId, refreshTrigger]
   );
 
   const handleRankChange = useCallback((obj: GradeObject, newRank: number | null) => {
     if (!selectedCategory) return;
+    
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+
     if (mode === "category") {
       writeCategoryRank(realm, obj, selectedCategory, categoryId, newRank);
     } else if (selectedSubcategory) {
       writeSubcategoryRank(realm, obj, selectedCategory, categoryId, selectedSubcategory, subcategoryId, newRank);
     }
+    setRefreshTrigger(prev => prev + 1);
   }, [realm, mode, selectedCategory, categoryId, selectedSubcategory, subcategoryId]);
 
   const catItems: SelectorItem[] = categories.map((c) => ({
@@ -97,7 +108,7 @@ useEffect(() => {
   if (!classOfGrading) {
     return (
       <View style={s.centered}>
-        <Text style={s.errorText}>Класс не найден</Text>
+        <Text style={s.errorText}>{t("class.not_found")}</Text>
       </View>
     );
   }
@@ -112,7 +123,7 @@ useEffect(() => {
           <View style={s.headerTop}>
             <View style={{ flex: 1, marginRight: 12 }}>
               <Text style={s.classLabel} numberOfLines={1}>{classOfGrading.name}</Text>
-              <Text style={s.statsText}>{gradedCount}/{sortedObjects.length} оценено</Text>
+              <Text style={s.statsText}>{t("grading.graded_count", { count: gradedCount })}</Text>
             </View>
             <TouchableOpacity style={s.closeBtn} onPress={() => router.back()}>
               <Text style={s.closeBtnText}>✕</Text>
@@ -130,7 +141,7 @@ useEffect(() => {
                   activeOpacity={disabled ? 1 : 0.7}
                 >
                   <Text style={[s.tabText, mode === m && s.tabTextActive, disabled && s.tabTextDisabled]}>
-                    {m === "category" ? "Категория" : "Подкатегория"}
+                    {m === "category" ? t("categories.category") : t("categories.subcategory")}
                   </Text>
                 </TouchableOpacity>
               );
@@ -139,13 +150,13 @@ useEffect(() => {
 
           <View style={s.selectorRow}>
             <TouchableOpacity style={s.chip} onPress={() => setCatModal(true)} activeOpacity={0.7}>
-              <Text style={s.chipLabel}>Категория</Text>
+              <Text style={s.chipLabel}>{t("categories.category")}</Text>
               <Text style={s.chipValue} numberOfLines={1}>{selectedCategory?.name ?? "—"}</Text>
               <Text style={s.chipArrow}>›</Text>
             </TouchableOpacity>
             {mode === "subcategory" && (
               <TouchableOpacity style={[s.chip, s.chipAccent]} onPress={() => setSubModal(true)} activeOpacity={0.7}>
-                <Text style={s.chipLabel}>Подкатегория</Text>
+                <Text style={s.chipLabel}>{t("categories.subcategory")}</Text>
                 <Text style={s.chipValue} numberOfLines={1}>{selectedSubcategory?.name ?? "—"}</Text>
                 <Text style={s.chipArrow}>›</Text>
               </TouchableOpacity>
@@ -156,8 +167,8 @@ useEffect(() => {
 
         <View style={s.colHeader}>
           <Text style={[s.colText, { width: 32, textAlign: "center" }]}>#</Text>
-          <Text style={[s.colText, { flex: 1, marginLeft: 10 }]}>Объект</Text>
-          <Text style={[s.colText, { width: 72, textAlign: "center" }]}>Оценка</Text>
+          <Text style={[s.colText, { flex: 1, marginLeft: 10 }]}>{t("object.object")}</Text>
+          <Text style={[s.colText, { width: 72, textAlign: "center" }]}>{t("grading.grade")}</Text>
         </View>
 
         <FlatList
@@ -166,11 +177,10 @@ useEffect(() => {
           contentContainerStyle={s.listContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          ItemSeparatorComponent={() => <View style={s.rowSep} />}
           ListEmptyComponent={
             <View style={s.empty}>
               <Text style={{ fontSize: 40 }}>📋</Text>
-              <Text style={s.emptyText}>Нет объектов в классе</Text>
+              <Text style={s.emptyText}>{t("class.no_objects")}</Text>
             </View>
           }
           renderItem={({ item: obj, index }) => {
@@ -201,12 +211,12 @@ useEffect(() => {
         />
 
         <SelectorModal
-          visible={catModal} title="Выбери категорию"
+          visible={catModal} title={t("grading.select_category")}
           items={catItems} selectedId={categoryId}
           onSelect={handleSelectCategory} onClose={() => setCatModal(false)}
         />
         <SelectorModal
-          visible={subModal} title="Выбери подкатегорию"
+          visible={subModal} title={t("grading.select_subcategory")}
           items={subItems} selectedId={subcategoryId}
           onSelect={setSubcategoryId} onClose={() => setSubModal(false)}
         />
@@ -246,11 +256,25 @@ const s = StyleSheet.create({
   colHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 8, backgroundColor: Colors.surfaceDarker, borderBottomWidth: 1, borderBottomColor: Colors.backgroundSecondary },
   colText: { fontSize: 11, fontWeight: "700", color: Colors.textSecondary, textTransform: "uppercase", letterSpacing: 0.5 },
 
-  listContent: { paddingVertical: 8, paddingHorizontal: 12 },
-  rowSep: { height: 1, backgroundColor: Colors.backgroundSecondary, marginHorizontal: 4 },
+  listContent: { paddingVertical: 12, paddingHorizontal: 12 },
 
-  row: { flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 4, borderRadius: 8, gap: 6 },
-  rowHighlighted: { backgroundColor: Colors.backgroundSecondary },
+  row: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    paddingVertical: 12, 
+    paddingHorizontal: 8, 
+    borderRadius: 12, 
+    backgroundColor: Colors.surface,
+    marginBottom: 8,
+    gap: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  rowHighlighted: { backgroundColor: Colors.backgroundSecondary, borderColor: Colors.primary + "30", borderWidth: 1 },
+  
   posBadge: { width: 28, alignItems: "center" },
   posText: { fontSize: 13, fontWeight: "700", color: Colors.textSecondary },
   accentBar: { width: 3, height: 36, borderRadius: 2, flexShrink: 0 },
