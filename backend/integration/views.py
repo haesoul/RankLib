@@ -29,6 +29,7 @@ from integration.serializers import (
     BulkExportSerializer, ValidationReportSerializer
 )
 from integration.service import ExportService, ImportService, RealmDataValidator
+from integration.utils import flatten_realm_data
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +149,8 @@ class FileUploadView(APIView):
     def _handle_class_photo(self, user, object_id, field_name, file_obj):
         """Обработка фото класса"""
         try:
+            if field_name != 'photo':
+                return Response({'success': False, 'error': f'Unsupported ClassOfGrading field: {field_name}'}, status=status.HTTP_400_BAD_REQUEST)
             cls = ClassOfGrading.objects.get(id=object_id)
             
             # Проверка прав
@@ -184,6 +187,8 @@ class FileUploadView(APIView):
     def _handle_object_photo(self, user, object_id, field_name, file_obj):
         """Обработка фото объекта"""
         try:
+            if field_name != 'photo':
+                return Response({'success': False, 'error': f'Unsupported GradeObject field: {field_name}'}, status=status.HTTP_400_BAD_REQUEST)
             obj = GradeObject.objects.get(id=object_id)
             
             # Проверка прав
@@ -217,120 +222,96 @@ class FileUploadView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
     
-    def _handle_media_item(self, user, object_id, field_name, file_obj, 
-                          media_type, mime_type, caption):
-        """
-        Обработка MediaItem
-        
-        ВАЖНО: object_id здесь - это ID GradeObject, к которому принадлежит медиа
-        """
+    def _handle_media_item(self, user, object_id, field_name, file_obj,
+                           media_type, mime_type, caption):
+        """Update the already-imported MediaItem row (URI or thumbnail)."""
         try:
-            # object_id - это ID GradeObject, а не MediaItem!
-            grade_object = GradeObject.objects.get(id=object_id)
-            
-            # Проверка прав
-            if grade_object.class_of_grading.workspace.user != user:
+            media_item = MediaItem.objects.select_related(
+                'grade_object__class_of_grading__workspace'
+            ).get(id=object_id)
+
+            if media_item.grade_object.class_of_grading.workspace.user != user:
                 return Response(
                     {'success': False, 'error': 'Permission denied'},
                     status=status.HTTP_403_FORBIDDEN
                 )
-            
-            # Определение типа медиа по MIME
-            if not mime_type:
-                mime_type = file_obj.content_type
-            
-            if not media_type:
-                if mime_type and 'video' in mime_type:
-                    media_type = 'video'
-                else:
-                    media_type = 'photo'
-            
-            # Сохранение файла
-            subdir = 'videos' if media_type == 'video' else 'photos'
+
+            if field_name not in ('uri', 'thumbnailUri'):
+                return Response(
+                    {'success': False, 'error': f'Unsupported MediaItem field: {field_name}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            resolved_mime = mime_type or file_obj.content_type or 'application/octet-stream'
+            resolved_type = media_type or ('video' if resolved_mime.startswith('video/') else 'photo')
+            subdir = 'videos' if resolved_type == 'video' else 'photos'
             file_path = f"users/{user.id}/media/{subdir}/{uuid.uuid4()}{self._get_extension(file_obj.name)}"
             saved_path = default_storage.save(file_path, ContentFile(file_obj.read()))
             file_url = default_storage.url(saved_path)
-            
-            # Создание MediaItem
-            media_item = MediaItem.objects.create(
-                grade_object=grade_object,
-                media_type=media_type,
-                mime_type=mime_type or 'application/octet-stream',
-                caption=caption or '',
-            )
-            
-            # Сохранение URI в зависимости от field_name
+
             if field_name == 'uri':
                 media_item.uri = file_url
-            elif field_name == 'thumbnailUri':
-                media_item.thumbnail_uri = file_url
+                media_item.media_type = resolved_type
+                media_item.mime_type = resolved_mime
+                if caption is not None:
+                    media_item.caption = caption
             else:
-                media_item.uri = file_url  # по умолчанию
-            
+                media_item.thumbnail_uri = file_url
+
             media_item.save()
-            
-            logger.info(
-                f"Created MediaItem for GradeObject {object_id}: "
-                f"type={media_type}, url={file_url}"
-            )
-            
             return Response({
                 'success': True,
-                'message': 'Media uploaded successfully',
+                'message': 'Media file updated successfully',
                 'media_id': str(media_item.id),
                 'file_url': file_url,
                 'file_size': file_obj.size,
-                'media_type': media_type,
+                'media_type': media_item.media_type,
             }, status=status.HTTP_200_OK)
-            
-        except GradeObject.DoesNotExist:
+
+        except MediaItem.DoesNotExist:
             return Response(
-                {'success': False, 'error': f'GradeObject {object_id} not found'},
+                {'success': False, 'error': f'MediaItem {object_id} not found; sync metadata before uploading files'},
                 status=status.HTTP_404_NOT_FOUND
             )
-    
+
     def _handle_note_photo(self, user, object_id, field_name, file_obj):
-        """Обработка фото заметки"""
+        """Attach a photo to an existing Note instead of creating a blank duplicate."""
         try:
-            # object_id - это ID GradeObject
-            grade_object = GradeObject.objects.get(id=object_id)
-            
-            # Проверка прав
-            if grade_object.class_of_grading.workspace.user != user:
+            if field_name != 'photoUri':
+                return Response(
+                    {'success': False, 'error': f'Unsupported Note field: {field_name}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            note = Note.objects.select_related(
+                'grade_object__class_of_grading__workspace'
+            ).get(id=object_id)
+            if note.grade_object.class_of_grading.workspace.user != user:
                 return Response(
                     {'success': False, 'error': 'Permission denied'},
                     status=status.HTTP_403_FORBIDDEN
                 )
-            
-            # Сохранение файла
+
             file_path = f"users/{user.id}/note_photos/{uuid.uuid4()}{self._get_extension(file_obj.name)}"
             saved_path = default_storage.save(file_path, ContentFile(file_obj.read()))
             file_url = default_storage.url(saved_path)
-            
-            # Создание заметки с фото
-            # Примечание: текст заметки должен быть отправлен в метаданных
-            note = Note.objects.create(
-                grade_object=grade_object,
-                text='',  # Будет обновлено позже из метаданных
-                photo_uri=file_url,
-            )
-            
-            logger.info(f"Created Note with photo for GradeObject {object_id}")
-            
+            note.photo_uri = file_url
+            note.save(update_fields=['photo_uri'])
+
             return Response({
                 'success': True,
-                'message': 'Note photo uploaded successfully',
+                'message': 'Note photo updated successfully',
                 'note_id': str(note.id),
                 'file_url': file_url,
                 'file_size': file_obj.size,
             }, status=status.HTTP_200_OK)
-            
-        except GradeObject.DoesNotExist:
+
+        except Note.DoesNotExist:
             return Response(
-                {'success': False, 'error': f'GradeObject {object_id} not found'},
+                {'success': False, 'error': f'Note {object_id} not found; sync metadata before uploading files'},
                 status=status.HTTP_404_NOT_FOUND
             )
-    
+
     def _handle_proof_image(self, user, object_id, model_name, file_obj):
         """Обработка proof image для CategoryOfObject или SubCategoryOfObject"""
         try:
@@ -439,9 +420,10 @@ class SyncViewSet(viewsets.GenericViewSet):
                 serializer = ValidationReportSerializer(validation)
                 return Response(serializer.data, status=status.HTTP_200_OK)
             
-            # Экспорт данных
+            # Frontend sends nested Realm objects. ExportService expects flat per-model arrays.
+            flat_realm_data = flatten_realm_data(realm_data)
             export_service = ExportService(workspace)
-            result = export_service.export_data(realm_data, merge=merge)
+            result = export_service.export_data(flat_realm_data, merge=merge)
             
             return Response(
                 {
@@ -481,7 +463,12 @@ class SyncViewSet(viewsets.GenericViewSet):
             # Импорт данных
             import_service = ImportService(workspace)
             result = import_service.import_all(download_files=download_files)
-            
+            if not result.get('success'):
+                return Response(
+                    {'success': False, 'error': result.get('error', 'Export failed')},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
             return Response(
                 {
                     'success': True,

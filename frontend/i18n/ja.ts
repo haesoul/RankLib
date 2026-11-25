@@ -144,6 +144,7 @@ export const ja = {
     },
 
     gallery: {
+      gallery: "ギャラリー",
       missing_id_warning: "GalleryScreen: id パラメータがありません",
       empty_text: "メディアなし",
       play_video: "再生",
@@ -175,6 +176,7 @@ export const ja = {
       select_category: "カテゴリーを選択",
       select_subcategory: "サブカテゴリーを選択",
       highest_rated: "優良",
+      rating: "評価",
     },
 
     pickImage: {

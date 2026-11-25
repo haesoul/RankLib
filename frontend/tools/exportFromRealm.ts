@@ -2,16 +2,18 @@
  * ИСПРАВЛЕННАЯ СИНХРОНИЗАЦИЯ REALM → DJANGO
  * 
  * ИСПРАВЛЕНИЯ:
- * 1. MediaItem: передаем ID GradeObject вместо несуществующего ID MediaItem
- * 2. Note: передаем ID GradeObject для создания заметок с фото
+ * 1. MediaItem/Note: передаем стабильные ID отдельных серверных записей
+ * 2. Фото и миниатюры обновляют нужные поля существующей записи
  * 3. Proof: передаем правильные ID CategoryOfObject/SubCategoryOfObject
  * 4. Правильные MIME типы для всех файлов
  * 5. Подсчет размера файлов
  */
 
-import { api } from "@/services/API/auth";
+import { API_URL } from "@/CONSTANTS";
+import { api, getAuthHeaders, refreshToken } from "@/services/API/auth";
 import * as FileSystem from "expo-file-system";
 import { Realm } from "realm";
+import { Platform } from "react-native";
 
 interface SyncResult {
   success: boolean;
@@ -31,6 +33,7 @@ interface ProgressCallback {
 
 interface FileUploadTask {
   uri: string;
+  /** ID of the target row: MediaItem/Note ID for embedded records, otherwise model ID. */
   objectId: string;
   modelName: string;
   fieldName: string;
@@ -63,11 +66,25 @@ function safeId(obj: any): string | null {
 
 function isLocalFile(uri: string | null | undefined): boolean {
   if (!uri) return false;
-  return uri.includes('file://') || uri.includes('DocumentDirectory');
+  return /^(file|content|ph|assets-library):\/\//i.test(uri) || uri.includes('DocumentDirectory');
+}
+
+function stableEmbeddedId(parentId: string, kind: string, index: number): string {
+  const value = `${parentId}:${kind}:${index}`;
+  const hash32 = (seed: number) => {
+    let hash = seed >>> 0;
+    for (let i = 0; i < value.length; i++) {
+      hash ^= value.charCodeAt(i);
+      hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    return hash.toString(16).padStart(8, '0');
+  };
+  return hash32(0x811c9dc5) + hash32(0x9e3779b9) + hash32(0x85ebca6b);
 }
 
 function getMimeType(uri: string): string {
-  const extension = uri.split('.').pop()?.toLowerCase();
+  const cleanUri = uri.split(/[?#]/, 1)[0];
+  const extension = cleanUri.split('.').pop()?.toLowerCase();
   const mimeTypes: Record<string, string> = {
     'jpg': 'image/jpeg',
     'jpeg': 'image/jpeg',
@@ -98,7 +115,24 @@ async function exportMetadata(
     const classes = realm.objects('ClassOfGrading');
     const allTags = realm.objects('Tag');
     const allRankTypes = realm.objects('RankType');
-    
+
+    // Embedded Realm records do not have primary keys. Persist a stable cloud ID
+    // so reordering media/notes on the server never changes their identity.
+    realm.write(() => {
+      for (const cls of safeList(classes)) {
+        for (const obj of safeList((cls as any).objects)) {
+          const objectId = safeId(obj);
+          if (!objectId) continue;
+          safeList((obj as any).media).forEach((media: any, index: number) => {
+            if (!/^[a-f0-9]{24}$/i.test(media.syncId || '')) media.syncId = stableEmbeddedId(objectId, 'media', index);
+          });
+          safeList((obj as any).notes).forEach((note: any, index: number) => {
+            if (!/^[a-f0-9]{24}$/i.test(note.syncId || '')) note.syncId = stableEmbeddedId(objectId, 'note', index);
+          });
+        }
+      }
+    });
+
     console.log(`Found ${classes.length} classes`);
     console.log(`Found ${allTags.length} tags`);
     console.log(`Found ${allRankTypes.length} rank types`);
@@ -130,7 +164,7 @@ async function exportMetadata(
         _id: safeId(cls) || '',
         name: cls.name || '',
         photo: isLocalFile(cls.photo) ? null : cls.photo,
-        priority: cls.priority != null ? cls.priority : 0,
+        priority: cls.priority != null ? cls.priority : 1,
         objectName: cls.objectName || 'Object',
         objectsName: cls.objectsName || 'Objects',
         noteName: cls.noteName || 'Note',
@@ -140,13 +174,13 @@ async function exportMetadata(
         categories: safeList(cls.categories).map((cat: any) => ({
           _id: safeId(cat) || '',
           name: cat.name || '',
-          priority: cat.priority != null ? cat.priority : 0,
-          weight: cat.weight != null ? cat.weight : 1.0,
+          priority: cat.priority != null ? cat.priority : 1,
+          weight: cat.weight != null ? Math.trunc(cat.weight) : 1,
           subcategories: safeList(cat.subcategories).map((sub: any) => ({
             _id: safeId(sub) || '',
             name: sub.name || '',
-            priority: sub.priority != null ? sub.priority : 0,
-            weight: sub.weight != null ? sub.weight : 1.0,
+            priority: sub.priority != null ? sub.priority : 1,
+            weight: sub.weight != null ? Math.trunc(sub.weight) : 1,
           })),
         })),
         
@@ -156,6 +190,8 @@ async function exportMetadata(
           name: obj.name || '',
           photo: isLocalFile(obj.photo) ? null : obj.photo,
           object_name: obj.object_name || '',
+          note_name: obj.note_name || '',
+          galery_name: obj.galery_name || '',
           description: obj.description || '',
           overall_rank: obj.overall_rank,
           
@@ -164,26 +200,37 @@ async function exportMetadata(
             _id: safeId(tag) || '',
           })),
           
-          // Медиа - ПУСТОЙ массив (загрузим отдельно)
-          media: [],
-          
-          // Заметки БЕЗ фото
-          notes: safeList(obj.notes).map((note: any) => ({
+          // Embedded Realm records get stable IDs on the server side.
+          media: safeList(obj.media).map((media: any, mediaIndex: number) => ({
+            _id: media.syncId || stableEmbeddedId(safeId(obj) || '', 'media', mediaIndex),
+            uri: isLocalFile(media.uri) ? null : media.uri || null,
+            mediaType: media.mediaType || 'photo',
+            mimeType: media.mimeType || null,
+            thumbnailUri: isLocalFile(media.thumbnailUri) ? null : media.thumbnailUri || null,
+            caption: media.caption || '',
+            length: media.length ?? null,
+            isFavorite: !!media.isFavorite,
+            isHighlighted: !!media.isHighlighted,
+            createdAt: media.createdAt?.toISOString?.() || new Date().toISOString(),
+          })),
+
+          notes: safeList(obj.notes).map((note: any, noteIndex: number) => ({
+            _id: note.syncId || stableEmbeddedId(safeId(obj) || '', 'note', noteIndex),
             text: note.text || '',
             author: note.author || '',
-            pinned: note.pinned || false,
-            photoUri: isLocalFile(note.photoUri) ? null : note.photoUri,
-            createdAt: note.createdAt?.toISOString() || new Date().toISOString(),
+            pinned: !!note.pinned,
+            photoUri: isLocalFile(note.photoUri) ? null : note.photoUri || null,
+            createdAt: note.createdAt?.toISOString?.() || new Date().toISOString(),
           })),
-          
+
           // Рейтинги категорий БЕЗ доказательств
           categories_of_object: safeList(obj.categories_of_object).map((rating: any) => ({
             _id: safeId(rating) || '',
             category: { _id: safeId(rating.category) || '' },
             rank: rating.rank,
-            proof: rating.proof && !isLocalFile(rating.proof.image)
+            proof: rating.proof
               ? {
-                  image: rating.proof.image,
+                  image: isLocalFile(rating.proof.image) ? null : rating.proof.image || null,
                   text: rating.proof.text || '',
                 }
               : null,
@@ -193,9 +240,9 @@ async function exportMetadata(
                 subcategory: { _id: safeId(subrating.subcategory) || '' },
                 rank: subrating.rank,
                 color: subrating.color || null,
-                proof: subrating.proof && !isLocalFile(subrating.proof.image)
+                proof: subrating.proof
                   ? {
-                      image: subrating.proof.image,
+                      image: isLocalFile(subrating.proof.image) ? null : subrating.proof.image || null,
                       text: subrating.proof.text || '',
                     }
                   : null,
@@ -256,15 +303,14 @@ async function scanLocalFiles(
       // Фото класса
       if (isLocalFile(c.photo) && classId) {
         const fileInfo = await FileSystem.getInfoAsync(c.photo);
-        if (fileInfo.exists) {
-          files.push({
+        if (!fileInfo.exists) throw new Error(`Class photo is missing: ${c.photo}`);
+        files.push({
             uri: c.photo,
             objectId: classId,
             modelName: 'ClassOfGrading',
             fieldName: 'photo',
-          });
-          totalSize += (fileInfo.size || 0);
-        }
+        });
+        totalSize += (fileInfo.size || 0);
       }
       
       // Объекты
@@ -277,76 +323,71 @@ async function scanLocalFiles(
         // Фото объекта
         if (isLocalFile(o.photo)) {
           const fileInfo = await FileSystem.getInfoAsync(o.photo);
-          if (fileInfo.exists) {
-            files.push({
+          if (!fileInfo.exists) throw new Error(`Object photo is missing: ${o.photo}`);
+          files.push({
               uri: o.photo,
               objectId: objId,
               modelName: 'GradeObject',
               fieldName: 'photo',
-            });
-            totalSize += (fileInfo.size || 0);
-          }
+          });
+          totalSize += (fileInfo.size || 0);
         }
         
-        // MediaItem - ИСПРАВЛЕНО: передаем ID GradeObject!
-        for (const media of safeList(o.media)) {
-          const m: any = media;
-          
-          // URI медиа
+        // MediaItem: use the stable MediaItem ID, not the parent GradeObject ID.
+        const mediaItems = safeList(o.media);
+        for (let mediaIndex = 0; mediaIndex < mediaItems.length; mediaIndex++) {
+          const m: any = mediaItems[mediaIndex];
+          const mediaId = m.syncId || stableEmbeddedId(objId, 'media', mediaIndex);
+
           if (isLocalFile(m.uri)) {
             const fileInfo = await FileSystem.getInfoAsync(m.uri);
-            if (fileInfo.exists) {
-              const mimeType = getMimeType(m.uri);
-              const mediaType = mimeType.startsWith('video/') ? 'video' : 'photo';
-              
+            if (!fileInfo.exists) throw new Error(`Media file is missing: ${m.uri}`);
+            const mimeType = m.mimeType || getMimeType(m.uri);
               files.push({
                 uri: m.uri,
-                objectId: objId, // ID GradeObject, а не MediaItem!
+                objectId: mediaId,
                 modelName: 'MediaItem',
                 fieldName: 'uri',
-                mediaType: mediaType,
-                mimeType: mimeType,
+                mediaType: m.mediaType || (mimeType.startsWith('video/') ? 'video' : 'photo'),
+                mimeType,
                 caption: m.caption || '',
-              });
-              totalSize += (fileInfo.size || 0);
-            }
+            });
+            totalSize += fileInfo.size || 0;
           }
-          
-          // Thumbnail URI
+
           if (isLocalFile(m.thumbnailUri)) {
             const fileInfo = await FileSystem.getInfoAsync(m.thumbnailUri);
-            if (fileInfo.exists) {
-              files.push({
+            if (!fileInfo.exists) throw new Error(`Media thumbnail is missing: ${m.thumbnailUri}`);
+            files.push({
                 uri: m.thumbnailUri,
-                objectId: objId, // ID GradeObject!
+                objectId: mediaId,
                 modelName: 'MediaItem',
                 fieldName: 'thumbnailUri',
                 mediaType: 'photo',
-                mimeType: 'image/jpeg',
-              });
-              totalSize += (fileInfo.size || 0);
-            }
+                mimeType: getMimeType(m.thumbnailUri),
+                caption: m.caption || '',
+            });
+            totalSize += fileInfo.size || 0;
           }
         }
-        
-        // Заметки с фото - ИСПРАВЛЕНО: передаем ID GradeObject!
-        for (const note of safeList(o.notes)) {
-          const n: any = note;
-          
+
+        // Note photo updates the existing Note row identified by the same stable ID.
+        const notes = safeList(o.notes);
+        for (let noteIndex = 0; noteIndex < notes.length; noteIndex++) {
+          const n: any = notes[noteIndex];
           if (isLocalFile(n.photoUri)) {
             const fileInfo = await FileSystem.getInfoAsync(n.photoUri);
-            if (fileInfo.exists) {
-              files.push({
+            if (!fileInfo.exists) throw new Error(`Note photo is missing: ${n.photoUri}`);
+            files.push({
                 uri: n.photoUri,
-                objectId: objId, // ID GradeObject!
+                objectId: n.syncId || stableEmbeddedId(objId, 'note', noteIndex),
                 modelName: 'Note',
                 fieldName: 'photoUri',
-              });
-              totalSize += (fileInfo.size || 0);
-            }
+            });
+            totalSize += fileInfo.size || 0;
           }
         }
-        
+
         // Proof images - CategoryOfObject
         for (const rating of safeList(o.categories_of_object)) {
           const r: any = rating;
@@ -354,15 +395,14 @@ async function scanLocalFiles(
           
           if (r.proof && isLocalFile(r.proof.image) && ratingId) {
             const fileInfo = await FileSystem.getInfoAsync(r.proof.image);
-            if (fileInfo.exists) {
-              files.push({
+            if (!fileInfo.exists) throw new Error(`Rating proof is missing: ${r.proof.image}`);
+            files.push({
                 uri: r.proof.image,
                 objectId: ratingId, // ID CategoryOfObject
                 modelName: 'CategoryOfObject',
                 fieldName: 'proof_image',
-              });
-              totalSize += (fileInfo.size || 0);
-            }
+            });
+            totalSize += (fileInfo.size || 0);
           }
           
           // Proof images - SubCategoryOfObject
@@ -372,15 +412,14 @@ async function scanLocalFiles(
             
             if (sr.proof && isLocalFile(sr.proof.image) && subratingId) {
               const fileInfo = await FileSystem.getInfoAsync(sr.proof.image);
-              if (fileInfo.exists) {
-                files.push({
+              if (!fileInfo.exists) throw new Error(`Subrating proof is missing: ${sr.proof.image}`);
+              files.push({
                   uri: sr.proof.image,
                   objectId: subratingId, // ID SubCategoryOfObject
                   modelName: 'SubCategoryOfObject',
                   fieldName: 'proof_image',
-                });
-                totalSize += (fileInfo.size || 0);
-              }
+              });
+              totalSize += (fileInfo.size || 0);
             }
           }
         }
@@ -460,6 +499,7 @@ async function sendMetadata(
 
 async function uploadFilesSequentially(
   files: FileUploadTask[],
+  _authToken: string,
   onProgress?: ProgressCallback
 ): Promise<{
   success: boolean;
@@ -468,110 +508,96 @@ async function uploadFilesSequentially(
   totalSize: number;
   errors?: string[];
 }> {
-  try {
-    console.log(`=== ФАЗА 4: ЗАГРУЗКА ${files.length} ФАЙЛОВ ===`);
-    
-    let uploaded = 0;
-    let failed = 0;
-    let totalSize = 0;
-    const errors: string[] = [];
-    
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      
-      try {
-        // Проверка существования файла
-        const fileInfo = await FileSystem.getInfoAsync(file.uri);
-        if (!fileInfo.exists) {
-          console.warn(`File not found: ${file.uri}`);
-          failed++;
-          errors.push(`File not found: ${file.uri}`);
-          continue;
-        }
-        
-        // Подготовка FormData
-        const formData = new FormData();
-        
-        const filename = file.uri.split('/').pop() || 'file.bin';
-        const mimeType = file.mimeType || getMimeType(file.uri);
-        
-        formData.append('file', {
-          uri: file.uri,
-          name: filename,
-          type: mimeType,
-        } as any);
-        
-        formData.append('object_id', file.objectId);
-        formData.append('model_name', file.modelName);
-        formData.append('field_name', file.fieldName);
-        
-        // Дополнительные параметры для MediaItem
-        if (file.modelName === 'MediaItem') {
-          if (file.mediaType) {
-            formData.append('media_type', file.mediaType);
+  console.log(`=== ФАЗА 4: ФОНОВАЯ ЗАГРУЗКА ${files.length} ФАЙЛОВ ===`);
+
+  let uploaded = 0;
+  let failed = 0;
+  let totalSize = 0;
+  const errors: string[] = [];
+  // Read the current token for every sync run. The Profile screen may hold an
+  // older token after the axios interceptor silently refreshed it.
+  const storedAuthHeaders = await getAuthHeaders();
+  let authorization = storedAuthHeaders.Authorization;
+  if (!authorization) {
+    return { success: false, uploaded: 0, failed: files.length, totalSize: 0, errors: ['No active access token'] };
+  }
+  const uploadUrl = `${API_URL.replace(/\/+$/, '')}/api/integration/sync/upload-file/`;
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    try {
+      const fileInfo = await FileSystem.getInfoAsync(file.uri);
+      if (!fileInfo.exists) {
+        throw new Error(`File not found: ${file.uri}`);
+      }
+
+      const filename = file.uri.split(/[/?#]/).filter(Boolean).pop() || 'upload.bin';
+      const mimeType = file.mimeType || getMimeType(file.uri);
+      let lastError: Error | null = null;
+      let completed = false;
+      for (let attempt = 0; attempt < 3 && !completed; attempt++) {
+        try {
+          const response = await FileSystem.uploadAsync(uploadUrl, file.uri, {
+            httpMethod: 'POST',
+            uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+            ...(Platform.OS === 'ios'
+              ? { sessionType: FileSystem.FileSystemSessionType.BACKGROUND }
+              : {}),
+            fieldName: 'file',
+            mimeType,
+            headers: {
+              Authorization: authorization,
+              'ngrok-skip-browser-warning': '69420',
+            },
+            parameters: {
+              object_id: file.objectId,
+              model_name: file.modelName,
+              field_name: file.fieldName,
+              media_type: file.mediaType || 'photo',
+              mime_type: mimeType,
+              caption: file.caption || '',
+              filename,
+            },
+          });
+
+          let body: any = {};
+          try { body = response.body ? JSON.parse(response.body) : {}; } catch { /* response may be empty */ }
+          if (response.status === 401 && attempt < 2) {
+            const refreshedAccess = await refreshToken();
+            authorization = `Bearer ${refreshedAccess}`;
+            continue;
           }
-          if (file.mimeType) {
-            formData.append('mime_type', file.mimeType);
+          if (response.status < 200 || response.status >= 300 || body.success !== true) {
+            throw new Error(body.error || body.message || `Upload endpoint returned an invalid response (HTTP ${response.status})`);
           }
-          if (file.caption) {
-            formData.append('caption', file.caption);
-          }
-        }
-        
-        // Отправка файла
-        await api.post('api/integration/sync/upload-file/', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-          transformRequest: (data, headers) => {
-            // Не позволяем Axios обрабатывать FormData
-            return data;
-          },
-        });
-        
-        uploaded++;
-        totalSize += (fileInfo.size || 0);
-        
-        if (onProgress) {
-          onProgress('upload_files', i + 1, files.length);
-        }
-        
-        console.log(`✅ Uploaded ${i + 1}/${files.length}: ${filename}`);
-      } catch (error: any) {
-        failed++;
-        const errorMsg = `Failed to upload ${file.uri}: ${error.message}`;
-        errors.push(errorMsg);
-        console.error(errorMsg);
-        
-        // Не прерываем процесс при ошибке одного файла
-        if (onProgress) {
-          onProgress('upload_files', i + 1, files.length);
+          completed = true;
+        } catch (attemptError: any) {
+          lastError = attemptError instanceof Error ? attemptError : new Error(String(attemptError));
+          if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
         }
       }
+      if (!completed) throw lastError || new Error('Upload failed');
+
+      uploaded++;
+      totalSize += fileInfo.size || 0;
+      console.log(`✅ Uploaded ${i + 1}/${files.length}: ${filename}`);
+    } catch (error: any) {
+      failed++;
+      const errorMsg = `Failed to upload ${file.uri}: ${error?.message || String(error)}`;
+      errors.push(errorMsg);
+      console.error(errorMsg);
+    } finally {
+      onProgress?.('upload_files', i + 1, files.length);
     }
-    
-    console.log(`\n✅ File upload completed: ${uploaded} uploaded, ${failed} failed`);
-    if (failed > 0) {
-      console.warn(`⚠️ ${failed} files failed to upload`);
-    }
-    
-    return {
-      success: failed === 0,
-      uploaded,
-      failed,
-      totalSize,
-      errors: errors.length > 0 ? errors : undefined,
-    };
-  } catch (error: any) {
-    console.error('File upload error:', error);
-    return {
-      success: false,
-      uploaded: 0,
-      failed: files.length,
-      totalSize: 0,
-      errors: [error.message],
-    };
   }
+
+  return {
+    success: failed === 0,
+    uploaded,
+    failed,
+    totalSize,
+    errors: errors.length ? errors : undefined,
+  };
 }
 
 // ===== ГЛАВНАЯ ФУНКЦИЯ ЭКСПОРТА =====
@@ -621,6 +647,7 @@ export async function exportRealmToServer(
     console.log('\n[4/4] Загрузка файлов...');
     const uploadFilesResult = await uploadFilesSequentially(
       filesResult.files || [],
+      authToken,
       onProgress
     );
     
@@ -636,8 +663,8 @@ export async function exportRealmToServer(
     if (uploadFilesResult.failed > 0) {
       console.warn(`⚠️ ${uploadFilesResult.failed} files failed to upload`);
       return {
-        success: true, // Частичный успех
-        message: `Sync completed with ${uploadFilesResult.failed} file upload errors`,
+        success: false,
+        message: `Metadata synced, but ${uploadFilesResult.failed} file upload(s) failed. Retry the sync to upload them.`,
         stats: finalStats,
       };
     }

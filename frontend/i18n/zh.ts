@@ -144,6 +144,7 @@ export const zh = {
     },
 
     gallery: {
+      gallery: "画廊",
       missing_id_warning: "GalleryScreen: 缺少 id 参数",
       empty_text: "暂无媒体文件",
       play_video: "播放",
@@ -175,6 +176,7 @@ export const zh = {
       select_category: "选择分类",
       select_subcategory: "选择子分类",
       highest_rated: "高分",
+      rating: "评分",
     },
 
     pickImage: {

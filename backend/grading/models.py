@@ -182,6 +182,8 @@ class GradeObject(models.Model):
     name = models.CharField(max_length=300, db_index=True)
     photo = models.URLField(blank=True, null=True)
     object_name = models.CharField(max_length=200, blank=True, null=True)
+    note_name = models.CharField(max_length=200, blank=True, null=True)
+    galery_name = models.CharField(max_length=200, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
     
     overall_rank = models.FloatField(null=True, blank=True)
@@ -209,6 +211,9 @@ class MediaItem(models.Model):
     mime_type = models.CharField(max_length=100, blank=True, null=True)
     thumbnail_uri = models.URLField(blank=True, null=True)
     caption = models.TextField(blank=True, null=True)
+    length = models.IntegerField(null=True, blank=True)
+    is_favorite = models.BooleanField(default=False)
+    is_highlighted = models.BooleanField(default=False)
     
     created_at = models.DateTimeField(auto_now_add=True)
     

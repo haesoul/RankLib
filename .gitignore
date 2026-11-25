@@ -1,2 +1,4 @@
-
+backend/
 venv/
+frontend/.expo/
+frontend/node_modules/

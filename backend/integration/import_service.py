@@ -135,8 +135,8 @@ class ImportService:
                 'notesName': cls.notes_name,
                 'categories': self._serialize_categories(cls),
                 'objects': self._serialize_objects(cls, download_files),
-                'tags': [{'_id': str(tag.id)} for tag in cls.class_tags.all()],
-                'rankTypes': [{'_id': str(rt.id)} for rt in cls.class_rank_types.all()],
+                'tags': [{'_id': str(link.tag_id)} for link in cls.class_tags.all()],
+                'rankTypes': [{'_id': str(link.rank_type_id)} for link in cls.class_rank_types.all()],
             }
             
             # Скачивание фото класса
@@ -190,9 +190,11 @@ class ImportService:
                 'photo': obj.photo if obj.photo else None,
                 'photo_base64': None,
                 'object_name': obj.object_name,
+                'note_name': obj.note_name,
+                'galery_name': obj.galery_name,
                 'description': obj.description,
-                'overall_rank': float(obj.overall_rank) if obj.overall_rank else None,
-                'tags': [{'_id': str(tag.id)} for tag in obj.object_tags.all()],
+                'overall_rank': float(obj.overall_rank) if obj.overall_rank is not None else None,
+                'tags': [{'_id': str(link.tag_id)} for link in obj.object_tags.all()],
                 'media': self._serialize_media(obj, download_files),
                 'notes': self._serialize_notes(obj, download_files),
                 'categories_of_object': self._serialize_ratings(obj, download_files),
@@ -218,13 +220,17 @@ class ImportService:
         
         for media in grade_object.media.all():
             media_data = {
-                'uri': media.uri if media else None,
+                '_id': str(media.id),
+                'uri': media.uri if media and media.uri else None,
                 'uri_base64': None,
                 'mediaType': media.media_type,
                 'mimeType': media.mime_type,
                 'thumbnailUri': media.thumbnail_uri if media.thumbnail_uri else None,
                 'thumbnail_base64': None,
                 'caption': media.caption,
+                'length': media.length,
+                'isFavorite': media.is_favorite,
+                'isHighlighted': media.is_highlighted,
                 'createdAt': media.created_at.isoformat(),
             }
             
@@ -256,6 +262,7 @@ class ImportService:
         
         for note in grade_object.notes.all():
             note_data = {
+                '_id': str(note.id),
                 'text': note.text,
                 'author': note.author,
                 'pinned': note.pinned,
@@ -286,7 +293,7 @@ class ImportService:
             rating_data = {
                 '_id': str(rating.id),
                 'category': {'_id': str(rating.category.id)},
-                'rank': float(rating.rank) if rating.rank else None,
+                'rank': float(rating.rank) if rating.rank is not None else None,
                 'proof': self._serialize_proof(rating.proof, download_files) if rating.proof else None,
                 'subcategories_of_category': self._serialize_subratings(
                     rating,
@@ -310,7 +317,7 @@ class ImportService:
             result.append({
                 '_id': str(subrating.id),
                 'subcategory': {'_id': str(subrating.subcategory.id)},
-                'rank': float(subrating.rank) if subrating.rank else None,
+                'rank': float(subrating.rank) if subrating.rank is not None else None,
                 'color': subrating.color,
                 'proof': self._serialize_proof(
                     subrating.proof,

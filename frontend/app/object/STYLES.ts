@@ -5,7 +5,6 @@ const styles = StyleSheet.create({
   container: {
     padding: 13,
     backgroundColor: Colors.background,
-    
   },
 
   header: {
@@ -24,7 +23,7 @@ const styles = StyleSheet.create({
 
   },
   imagePlaceholder: {
-    backgroundColor: "#2E2E2E",
+    backgroundColor: Colors.backgroundSecondary,
     justifyContent: "center",
     alignItems: "center",
   },

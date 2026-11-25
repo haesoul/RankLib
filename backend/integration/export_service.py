@@ -6,6 +6,7 @@
 from typing import Dict, List, Any
 from django.db import transaction
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 import logging
 
 from grading.models import (
@@ -64,6 +65,12 @@ class ExportService:
                 'errors': [],
             }
             
+            # Replace mode is scoped to this user's workspace only.
+            if not merge:
+                ClassOfGrading.objects.filter(workspace=self.workspace).delete()
+                Tag.objects.filter(workspace=self.workspace).delete()
+                RankType.objects.filter(workspace=self.workspace).delete()
+
             # Экспорт в правильном порядке (зависимости)
             self._export_rank_types(realm_data.get('RankType', []))
             self._export_tags(realm_data.get('Tag', []))
@@ -77,6 +84,13 @@ class ExportService:
             self._export_category_of_objects(realm_data.get('CategoryOfObject', []))
             self._export_subcategory_of_objects(realm_data.get('SubCategoryOfObject', []))
             self._export_relationships(realm_data)
+
+            # Never report a successful partial import. transaction.atomic rolls back on this error.
+            if self.export_stats['errors']:
+                preview = '; '.join(self.export_stats['errors'][:5])
+                raise ValueError(
+                    f"Import aborted: {len(self.export_stats['errors'])} record(s) failed. {preview}"
+                )
             
             # Обновление времени синхронизации
             self._update_workspace_sync_time()
@@ -116,8 +130,7 @@ class ExportService:
                 }
                 
                 obj, created = RankType.objects.update_or_create(
-                    id=item['_id'],
-                    defaults=defaults
+                    id=item['_id'], workspace=self.workspace, defaults=defaults
                 )
                 
                 self.export_stats['total_items'] += 1
@@ -132,44 +145,46 @@ class ExportService:
                 self.export_stats['errors'].append(error_msg)
     
     def _export_tags(self, tags: List[Dict]):
-        """Экспорт тегов"""
+        """Экспорт тегов с поддержкой произвольной вложенности."""
         logger.info(f"Processing {len(tags)} tags")
-        
-        # Сортировка: сначала теги без родителя, потом с родителем
-        tags_no_parent = [t for t in tags if not t.get('parent_tag')]
-        tags_with_parent = [t for t in tags if t.get('parent_tag')]
-        
-        for item in tags_no_parent + tags_with_parent:
-            try:
+        pending = list(tags)
+
+        while pending:
+            made_progress = False
+            for index in range(len(pending) - 1, -1, -1):
+                item = pending[index]
+                parent_id = item.get('parent_tag')
                 parent_tag = None
-                if item.get('parent_tag'):
-                    try:
-                        parent_tag = Tag.objects.get(id=item['parent_tag'])
-                    except Tag.DoesNotExist:
-                        logger.warning(f"Parent tag {item['parent_tag']} not found")
-                
+                if parent_id:
+                    parent_tag = Tag.objects.filter(
+                        id=parent_id, workspace=self.workspace
+                    ).first()
+                    if parent_tag is None:
+                        # Parent may appear later in this payload; distinguish it from a foreign/missing ID.
+                        if any(str(candidate.get('_id')) == str(parent_id) for candidate in pending):
+                            continue
+                        raise ValueError(f"Parent tag {parent_id} not found in this workspace")
+
                 defaults = {
                     'name': item['name'],
                     'parent_tag': parent_tag,
                     'workspace': self.workspace,
                 }
-                
                 obj, created = Tag.objects.update_or_create(
-                    id=item['_id'],
-                    defaults=defaults
+                    id=item['_id'], workspace=self.workspace, defaults=defaults
                 )
-                
                 self.export_stats['total_items'] += 1
                 if created:
                     self.export_stats['created_items'] += 1
                 else:
                     self.export_stats['updated_items'] += 1
-                    
-            except Exception as e:
-                error_msg = f"Tag {item.get('_id')}: {str(e)}"
-                logger.error(error_msg)
-                self.export_stats['errors'].append(error_msg)
-    
+                pending.pop(index)
+                made_progress = True
+
+            if not made_progress:
+                unresolved = ', '.join(str(item.get('_id')) for item in pending)
+                raise ValueError(f"Tag parent cycle or unresolved references: {unresolved}")
+
     def _export_classes(self, classes: List[Dict]):
         """Экспорт классов"""
         logger.info(f"Processing {len(classes)} classes")
@@ -202,8 +217,7 @@ class ExportService:
                     defaults['photo'] = item['photo']
                 
                 obj, created = ClassOfGrading.objects.update_or_create(
-                    id=item['_id'],
-                    defaults=defaults
+                    id=item['_id'], workspace=self.workspace, defaults=defaults
                 )
                 
                 self.export_stats['total_items'] += 1
@@ -225,12 +239,8 @@ class ExportService:
             try:
                 class_id = item.get('class_of_grading')
                 if not class_id:
-                    continue
-                
-                try:
-                    class_obj = ClassOfGrading.objects.get(id=class_id)
-                except ClassOfGrading.DoesNotExist:
-                    continue
+                    raise ValueError('Missing class_of_grading reference')
+                class_obj = ClassOfGrading.objects.get(id=class_id, workspace=self.workspace)
                 
                 defaults = {
                     'name': item['name'],
@@ -263,12 +273,10 @@ class ExportService:
             try:
                 category_id = item.get('category')
                 if not category_id:
-                    continue
-                
-                try:
-                    category = Category.objects.get(id=category_id)
-                except Category.DoesNotExist:
-                    continue
+                    raise ValueError('Missing category reference')
+                category = Category.objects.get(
+                    id=category_id, class_of_grading__workspace=self.workspace
+                )
                 
                 defaults = {
                     'name': item['name'],
@@ -301,16 +309,14 @@ class ExportService:
             try:
                 class_id = item.get('class_of_grading')
                 if not class_id:
-                    continue
-                
-                try:
-                    class_obj = ClassOfGrading.objects.get(id=class_id)
-                except ClassOfGrading.DoesNotExist:
-                    continue
+                    raise ValueError('Missing class_of_grading reference')
+                class_obj = ClassOfGrading.objects.get(id=class_id, workspace=self.workspace)
                 
                 defaults = {
                     'name': item['name'],
                     'object_name': item.get('object_name'),
+                    'note_name': item.get('note_name'),
+                    'galery_name': item.get('galery_name'),
                     'description': item.get('description'),
                     'overall_rank': item.get('overall_rank'),
                 }
@@ -383,67 +389,75 @@ class ExportService:
                 self.export_stats['errors'].append(error_msg)
     
     def _export_media_items(self, media_items: List[Dict]):
-        """Экспорт медиа"""
+        """Create/update media metadata before files are uploaded separately."""
         logger.info(f"Processing {len(media_items)} media items")
-        
+
         for item in media_items:
             try:
                 grade_object_id = item.get('grade_object')
                 if not grade_object_id:
-                    continue
-                
-                try:
-                    grade_object = GradeObject.objects.get(id=grade_object_id)
-                except GradeObject.DoesNotExist:
-                    continue
-                
+                    raise ValueError('Missing grade_object reference')
+                grade_object = GradeObject.objects.get(
+                    id=grade_object_id,
+                    class_of_grading__workspace=self.workspace,
+                )
+
                 defaults = {
-                    'media_type': item.get('mediaType', 'image'),
+                    'media_type': item.get('mediaType') or 'photo',
                     'mime_type': item.get('mimeType'),
-                    'caption': item.get('caption'),
+                    'caption': item.get('caption') or '',
+                    'length': item.get('length'),
+                    'is_favorite': bool(item.get('isFavorite', False)),
+                    'is_highlighted': bool(item.get('isHighlighted', False)),
                 }
-                
-                # Обработка URI
+
                 if item.get('uri_base64'):
                     uri_url = self.file_manager.upload_file_from_base64(
-                        item['uri_base64'],
-                        item['_id'],
-                        'media'
+                        item['uri_base64'], item['_id'], 'media'
                     )
                     if uri_url:
                         defaults['uri'] = uri_url
                 elif item.get('uri'):
                     defaults['uri'] = item['uri']
-                
-                # Обработка thumbnail
+
                 if item.get('thumbnail_base64'):
                     thumb_url = self.file_manager.upload_file_from_base64(
-                        item['thumbnail_base64'],
-                        f"{item['_id']}_thumb",
-                        'media'
+                        item['thumbnail_base64'], f"{item['_id']}_thumb", 'media'
                     )
                     if thumb_url:
                         defaults['thumbnail_uri'] = thumb_url
                 elif item.get('thumbnailUri'):
                     defaults['thumbnail_uri'] = item['thumbnailUri']
-                
-                obj, created = MediaItem.objects.update_or_create(
-                    id=item['_id'],
-                    grade_object=grade_object,
-                    defaults=defaults
-                )
-                
+
+                existing = MediaItem.objects.filter(
+                    id=item['_id'], grade_object=grade_object
+                ).first()
+                if existing:
+                    for field, value in defaults.items():
+                        setattr(existing, field, value)
+                    existing.save()
+                    created = False
+                    obj = existing
+                else:
+                    # uri is non-null in the current Django model; the upload endpoint fills it later.
+                    defaults.setdefault('uri', '')
+                    obj = MediaItem.objects.create(
+                        id=item['_id'], grade_object=grade_object, **defaults
+                    )
+                    created = True
+
+                self._restore_created_at(obj, item.get('createdAt'))
                 self.export_stats['total_items'] += 1
                 if created:
                     self.export_stats['created_items'] += 1
                 else:
                     self.export_stats['updated_items'] += 1
-                    
+
             except Exception as e:
                 error_msg = f"MediaItem {item.get('_id')}: {str(e)}"
                 logger.error(error_msg)
                 self.export_stats['errors'].append(error_msg)
-    
+
     def _export_notes(self, notes: List[Dict]):
         """Экспорт заметок"""
         logger.info(f"Processing {len(notes)} notes")
@@ -452,12 +466,12 @@ class ExportService:
             try:
                 grade_object_id = item.get('grade_object')
                 if not grade_object_id:
-                    continue
+                    raise ValueError('Missing grade_object reference')
                 
                 try:
-                    grade_object = GradeObject.objects.get(id=grade_object_id)
+                    grade_object = GradeObject.objects.get(id=grade_object_id, class_of_grading__workspace=self.workspace)
                 except GradeObject.DoesNotExist:
-                    continue
+                    raise ValueError(f'GradeObject {grade_object_id} not found in this workspace')
                 
                 defaults = {
                     'text': item['text'],
@@ -482,6 +496,7 @@ class ExportService:
                     grade_object=grade_object,
                     defaults=defaults
                 )
+                self._restore_created_at(obj, item.get('createdAt'))
                 
                 self.export_stats['total_items'] += 1
                 if created:
@@ -504,13 +519,13 @@ class ExportService:
                 object_id = item.get('object')
                 
                 if not (category_id and object_id):
-                    continue
+                    raise ValueError('Missing category or object reference')
                 
                 try:
-                    category = Category.objects.get(id=category_id)
-                    grade_object = GradeObject.objects.get(id=object_id)
+                    category = Category.objects.get(id=category_id, class_of_grading__workspace=self.workspace)
+                    grade_object = GradeObject.objects.get(id=object_id, class_of_grading__workspace=self.workspace)
                 except (Category.DoesNotExist, GradeObject.DoesNotExist):
-                    continue
+                    raise ValueError('Category or GradeObject reference not found in this workspace')
                 
                 proof = None
                 proof_id = item.get('proof')
@@ -518,7 +533,7 @@ class ExportService:
                     try:
                         proof = Proof.objects.get(id=proof_id)
                     except Proof.DoesNotExist:
-                        pass
+                        raise ValueError(f'Proof {proof_id} not found')
                 
                 defaults = {
                     'rank': item.get('rank'),
@@ -553,15 +568,15 @@ class ExportService:
                 category_of_object_id = item.get('category_of_object')
                 
                 if not (subcategory_id and category_of_object_id):
-                    continue
+                    raise ValueError('Missing subcategory or category rating reference')
                 
                 try:
-                    subcategory = SubCategory.objects.get(id=subcategory_id)
+                    subcategory = SubCategory.objects.get(id=subcategory_id, category__class_of_grading__workspace=self.workspace)
                     category_of_object = CategoryOfObject.objects.get(
-                        id=category_of_object_id
+                        id=category_of_object_id, grade_object__class_of_grading__workspace=self.workspace
                     )
                 except (SubCategory.DoesNotExist, CategoryOfObject.DoesNotExist):
-                    continue
+                    raise ValueError('SubCategory or CategoryOfObject reference not found in this workspace')
                 
                 proof = None
                 proof_id = item.get('proof')
@@ -569,7 +584,7 @@ class ExportService:
                     try:
                         proof = Proof.objects.get(id=proof_id)
                     except Proof.DoesNotExist:
-                        pass
+                        raise ValueError(f'Proof {proof_id} not found')
                 
                 defaults = {
                     'rank': item.get('rank'),
@@ -603,13 +618,12 @@ class ExportService:
         for item in realm_data.get('ObjectTag', []):
             try:
                 if not item.get('grade_object') or not item.get('tag'):
-                    continue
+                    raise ValueError('Missing grade_object or tag reference')
                 
-                grade_object = GradeObject.objects.get(id=item['grade_object'])
-                tag = Tag.objects.get(id=item['tag'])
+                grade_object = GradeObject.objects.get(id=item['grade_object'], class_of_grading__workspace=self.workspace)
+                tag = Tag.objects.get(id=item['tag'], workspace=self.workspace)
                 
                 obj, created = ObjectTag.objects.get_or_create(
-                    id=item['_id'],
                     grade_object=grade_object,
                     tag=tag
                 )
@@ -629,13 +643,12 @@ class ExportService:
         for item in realm_data.get('ClassTag', []):
             try:
                 if not item.get('class_of_grading') or not item.get('tag'):
-                    continue
+                    raise ValueError('Missing class or tag reference')
                 
-                class_obj = ClassOfGrading.objects.get(id=item['class_of_grading'])
-                tag = Tag.objects.get(id=item['tag'])
+                class_obj = ClassOfGrading.objects.get(id=item['class_of_grading'], workspace=self.workspace)
+                tag = Tag.objects.get(id=item['tag'], workspace=self.workspace)
                 
                 obj, created = ClassTag.objects.get_or_create(
-                    id=item['_id'],
                     class_of_grading=class_obj,
                     tag=tag
                 )
@@ -655,13 +668,12 @@ class ExportService:
         for item in realm_data.get('ClassRankType', []):
             try:
                 if not item.get('class_of_grading') or not item.get('rank_type'):
-                    continue
+                    raise ValueError('Missing class or rank type reference')
                 
-                class_obj = ClassOfGrading.objects.get(id=item['class_of_grading'])
-                rank_type = RankType.objects.get(id=item['rank_type'])
+                class_obj = ClassOfGrading.objects.get(id=item['class_of_grading'], workspace=self.workspace)
+                rank_type = RankType.objects.get(id=item['rank_type'], workspace=self.workspace)
                 
                 obj, created = ClassRankType.objects.get_or_create(
-                    id=item['_id'],
                     class_of_grading=class_obj,
                     rank_type=rank_type
                 )
@@ -677,6 +689,17 @@ class ExportService:
                 logger.error(error_msg)
                 self.export_stats['errors'].append(error_msg)
     
+    def _restore_created_at(self, instance, value):
+        """Preserve client creation timestamps despite auto_now_add fields."""
+        if not value:
+            return
+        parsed = parse_datetime(str(value))
+        if parsed is None:
+            return
+        if timezone.is_naive(parsed):
+            parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+        type(instance).objects.filter(pk=instance.pk).update(created_at=parsed)
+
     def _update_workspace_sync_time(self):
         """Обновление времени синхронизации"""
         self.workspace.last_sync_at = timezone.now()

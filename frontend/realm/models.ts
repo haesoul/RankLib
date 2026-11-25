@@ -96,7 +96,7 @@ export class Category extends Realm.Object<Category> {
       class_of_category: "ClassOfGrading",
       subcategories: { type: "list", objectType: "SubCategory" },
       priority: "int",
-      weight: "int"
+      weight: "int?"
     },
   };
 }
@@ -114,7 +114,8 @@ export class SubCategory extends Realm.Object<SubCategory> {
       _id: "objectId",
       name: "string",
       category: "Category",
-      priority: 'int'
+      priority: 'int',
+      weight: 'int?'
     },
   };
 }
@@ -131,7 +132,9 @@ export class GradeObject extends Realm.Object<GradeObject> {
   tags!: Realm.List<Tag>;
   description?: string;
 
-  object_name?: string
+  object_name?: string;
+  note_name?: string;
+  galery_name?: string;
   static schema: Realm.ObjectSchema = {
     name: "GradeObject",
     primaryKey: "_id",
@@ -155,6 +158,7 @@ export class GradeObject extends Realm.Object<GradeObject> {
 }
 
 export class MediaItem extends Realm.Object<MediaItem> {
+  syncId?: string;
   uri!: string;
   mediaType!: string;
   mimeType?: string;
@@ -162,21 +166,29 @@ export class MediaItem extends Realm.Object<MediaItem> {
   caption?: string;
   createdAt!: Date;
 
+  length?: number;
+  isFavorite!: boolean;
+  isHighlighted!: boolean;
   static schema: Realm.ObjectSchema = {
     name: "MediaItem",
     embedded: true,
     properties: {
+      syncId: "string?",
       uri: "string",
       mediaType: "string",
       mimeType: "string?",
       thumbnailUri: "string?",
       caption: "string?",
       createdAt: "date",
+      length: "int?",
+      isFavorite: { type: "bool", default: false },
+      isHighlighted: { type: "bool", default: false },
     },
   };
 }
 
 export class Note extends Realm.Object<Note> {
+  syncId?: string;
   text!: string;
   author?: string;
   pinned?: boolean;
@@ -186,6 +198,7 @@ export class Note extends Realm.Object<Note> {
     name: "Note",
     embedded: true,
     properties: {
+      syncId: "string?",
       text: "string",
       author: "string?",
       pinned: { type: "bool", default: false },

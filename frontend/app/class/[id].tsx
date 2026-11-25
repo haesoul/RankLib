@@ -69,6 +69,13 @@ export default function ClassDetail() {
           onPress: () => { router.push(`/class/Edit/${id}`); }
         },
         {
+          id: 'gallery',
+          title: t('gallery.gallery'),
+          icon: 'photo' as const,
+          variant: 'primary' as const,
+          onPress: () => { router.push(`/class/Gallery/${id}`); }
+        },
+        {
           id: 'categories',
           title: t('categories.categories'),
           icon: 'category' as const,

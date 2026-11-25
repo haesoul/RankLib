@@ -219,37 +219,49 @@ export default function ProObjectScreen() {
       const rawItems = parsed as ProObjectPayload[];
       const itemIds = rawItems.map(() => new Realm.BSON.ObjectId());
       const failedPhotos: string[] = [];
-      const downloadedPhotos = await Promise.all(
-        rawItems.map(async (item, i) => {
-          try {
-            return await downloadImageToLocalStorage(item.photo, { type: "object", classId: classOfGrading._id, objectId: itemIds[i] });
-          } catch (err) {
-            failedPhotos.push(item.name);
-            console.warn(`Фото для "${item.name}" не скачалось:`, err);
-            return undefined;
-          }
-        })
-      );
+      const downloadedPhotos: (string | undefined)[] = [];
+
+      for (let i = 0; i < rawItems.length; i++) {
+        const item = rawItems[i];
+        if (!item.photo) {
+          downloadedPhotos.push(undefined);
+          continue;
+        }
+        try {
+          const path = await downloadImageToLocalStorage(item.photo, { 
+            type: "object", 
+            classId: classOfGrading._id, 
+            objectId: itemIds[i] 
+          });
+          downloadedPhotos.push(path);
+        } catch (err) {
+          failedPhotos.push(item.name);
+          console.warn(`Фото для "${item.name}" не скачалось:`, err);
+          downloadedPhotos.push(undefined);
+        }
+      }
 
       try {
         await createObject({
           realm,
           classObj: classOfGrading,
+          tags: [],
           items: rawItems.map((item, i) => ({
-            id: itemIds[i],
             name: item.name,
             photo: downloadedPhotos[i],
             overallRank: item.overall_rank,
             description: item.description,
           })),
         });
+        
         downloadedPhotos.forEach((photoPath) => {
-          if (isDownloadedTempFile(photoPath)) {
-            FileSystem.deleteAsync(photoPath!, { idempotent: true }).catch((e: any) =>
+          if (photoPath && isDownloadedTempFile(photoPath)) {
+            FileSystem.deleteAsync(photoPath, { idempotent: true }).catch((e: any) =>
               console.warn(t("pro_mode.temp_file_delete_error"), e)
             );
           }
         });
+        
         setStatus("success");
         setMessage(
           failedPhotos.length

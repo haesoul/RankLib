@@ -144,6 +144,7 @@ export const fr = {
     },
 
     gallery: {
+      gallery: "Galerie",
       missing_id_warning: "GalleryScreen : paramètre id manquant",
       empty_text: "Aucun média",
       play_video: "Lire",
@@ -175,6 +176,7 @@ export const fr = {
       select_category: "Sélectionnez une catégorie",
       select_subcategory: "Sélectionnez une sous-catégorie",
       highest_rated: "Meilleur",
+      rating: "Évaluation",
     },
 
     pickImage: {

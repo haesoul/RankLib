@@ -1,0 +1,9 @@
+.git/
+../backend/
+/node_modules/
+/.expo/
+/android/
+/ios/
+/build/
+/dist/
+*.realm

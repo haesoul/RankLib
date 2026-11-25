@@ -105,7 +105,7 @@ export default function ClassCardScreen() {
         </View>
 
         <View style={styles.scoreContainer}>
-          <Text style={styles.scoreLabel}>RATING</Text>
+          <Text style={styles.scoreLabel}>{t('grading.rating')}</Text>
           <Text style={[styles.scoreValue, { color: colors.text }]}>
             {item.overall_rank ? parseFloat(item.overall_rank.toFixed(2)) : ''}
           </Text>

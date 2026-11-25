@@ -144,6 +144,7 @@
     },
 
     gallery: {
+      gallery: "Gallery",
       missing_id_warning: "GalleryScreen: missing id parameter",
       empty_text: "No media",
       play_video: "Play",
@@ -175,6 +176,7 @@
       select_category: "Select category",
       select_subcategory: "Select subcategory",
       highest_rated: "Better",
+      rating: "Rating",
     },
 
     pickImage: {

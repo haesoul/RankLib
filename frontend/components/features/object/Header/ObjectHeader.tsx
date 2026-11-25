@@ -77,7 +77,7 @@ export default function ObjectHeader({ object, newPhotoUri, objectMenuOpen,  set
           <Button
             title={t('common.edit')}
             textStyle={styles.buttonText}
-            onPress={() => setObjectMenuOpen(true)}
+            onPress={() => setEditing(true)}
           />
       </View>
     </>

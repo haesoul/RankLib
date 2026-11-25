@@ -18,7 +18,7 @@ export default function Layout() {
 
   if (!fontLoaded) return null;
   return (
-    <RealmProvider schema={SCHEMAS} schemaVersion={21}>
+    <RealmProvider schema={SCHEMAS} schemaVersion={24}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <AuthProvider>
           <StatusBar style="light" translucent backgroundColor="transparent" />

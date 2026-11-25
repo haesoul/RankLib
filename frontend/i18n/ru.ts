@@ -146,6 +146,7 @@ export const ru = {
     },
 
     gallery: {
+      gallery: "Галерея",
       missing_id_warning: "GalleryScreen: отсутствует параметр id",
       empty_text: "Нет медиа",
       play_video: "Воспроизвести",
@@ -177,6 +178,7 @@ export const ru = {
       select_category: "Выберите категорию",
       select_subcategory: "Выберите подкатегорию",
       highest_rated: "Лучше",
+      rating: "Рейтинг",
     },
 
     pickImage: {

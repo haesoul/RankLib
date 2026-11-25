@@ -255,7 +255,7 @@ export default function ObjectDetail() {
   
   if (!object) return <Text style={{ padding: 16 }}>{t('common.loading')}</Text>;
   return (
-      <SafeAreaView style={{flex: 1, backgroundColor: "#0D0D0D"}}>
+      <SafeAreaView style={{flex: 1, backgroundColor: Colors.background}}>
         <ScrollView contentContainerStyle={styles.container}>
           <View >
 

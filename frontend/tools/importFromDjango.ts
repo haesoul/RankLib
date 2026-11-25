@@ -62,15 +62,20 @@ interface RawRating {
 }
 
 interface RawMedia {
+  _id?: string | null;
   uri?: string | null;
   mediaType?: string | null;
   mimeType?: string | null;
   thumbnailUri?: string | null;
   caption?: string | null;
+  length?: number | null;
+  isFavorite?: boolean | null;
+  isHighlighted?: boolean | null;
   createdAt?: string | null;
 }
 
 interface RawNote {
+  _id?: string | null;
   text?: string | null;
   author?: string | null;
   pinned?: boolean | null;
@@ -87,6 +92,8 @@ interface RawObject {
   name?: string | null;
   photo?: string | null;
   object_name?: string | null;
+  note_name?: string | null;
+  galery_name?: string | null;
   description?: string | null;
   overall_rank?: number | null;
   media?: RawMedia[];
@@ -182,11 +189,21 @@ function safeArray<T>(value: unknown): T[] {
  * Конвертация строкового ID в Realm ObjectId
  */
 function toObjectId(id: string): Realm.BSON.ObjectId {
-  try {
-    return new Realm.BSON.ObjectId(id);
-  } catch {
-    return new Realm.BSON.ObjectId();
+  if (typeof id !== "string" || !/^[a-fA-F0-9]{24}$/.test(id)) {
+    throw new Error(`Invalid Realm ObjectId: ${String(id)}`);
   }
+  return new Realm.BSON.ObjectId(id);
+}
+
+function objectIdString(value: any): string {
+  if (!value) return "";
+  if (typeof value.toHexString === "function") return value.toHexString().toLowerCase();
+  return String(value).toLowerCase();
+}
+
+function pushIfMissing(list: any, item: any, id: string): void {
+  const exists = Array.from(list).some((current: any) => objectIdString(current?._id) === id.toLowerCase());
+  if (!exists) list.push(item);
 }
 
 
@@ -205,20 +222,18 @@ function isValidMediaUrl(url: string | null | undefined): boolean {
  * Полные http/https URL возвращаются без изменений.
  */
 function resolveUrl(url: string): string {
-  if (url.startsWith("http://") || url.startsWith("https://")) {
-    return url;
-  }
-  return `${API_URL}${url}`;
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${API_URL.replace(/\/+$/, "")}/${url.replace(/^\/+/, "")}`;
 }
 
 /**
  * Генерация локального пути для сохранения файла
  */
 function generateLocalPath(url: string, type: string): string {
-  const extension = url.split(".").pop()?.toLowerCase() || "jpg";
-  const filename = `${Date.now()}_${Math.random()
-    .toString(36)
-    .substring(7)}.${extension}`;
+  const pathOnly = url.split(/[?#]/, 1)[0];
+  const rawExtension = pathOnly.split("/").pop()?.split(".").pop()?.toLowerCase() || "jpg";
+  const extension = /^[a-z0-9]{1,8}$/.test(rawExtension) ? rawExtension : "jpg";
+  const filename = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}.${extension}`;
   return `${FileSystem.documentDirectory}${type}/${filename}`;
 }
 
@@ -274,416 +289,308 @@ async function fetchDataFromServer(onProgress?: ProgressCallback): Promise<{
   }
 }
 
-// ===== ФАЗА 2: ИМПОРТ RANK TYPES =====
+// ===== ФАЗЫ 2–4: ИМПОРТ МЕТАДАННЫХ В ОДНОЙ ТРАНЗАКЦИИ REALM =====
 
-async function importRankTypes(
+function importRankTypes(
   realm: Realm,
   rankTypesData: RawRankType[],
   onProgress?: ProgressCallback
-): Promise<number> {
-  console.log(`=== ИМПОРТ ${rankTypesData.length} RANK TYPES ===`);
-
+): number {
   let imported = 0;
-
   for (let i = 0; i < rankTypesData.length; i++) {
     const rt = rankTypesData[i];
-
-    try {
-      realm.write(() => {
-        realm.create(
-          "RankType",
-          {
-            _id: toObjectId(rt._id),
-            name: safeString(rt.name, "Unknown"),
-            fromRank: safeNumber(rt.fromRank, 0),
-            // color — string? в Realm, передаём undefined если null
-            color: safeStringOrUndefined(rt.color),
-            createdAt: safeDate(rt.createdAt),
-          },
-          Realm.UpdateMode.Modified
-        );
-      });
-
-      imported++;
-
-      if (onProgress) {
-        onProgress("import_rank_types", i + 1, rankTypesData.length);
-      }
-    } catch (error: any) {
-      console.error(`Failed to import RankType ${rt._id}:`, error.message);
-    }
+    realm.create(
+      "RankType",
+      {
+        _id: toObjectId(rt._id),
+        name: safeString(rt.name, "Unknown"),
+        fromRank: safeNumber(rt.fromRank, 0),
+        color: safeStringOrUndefined(rt.color),
+        createdAt: safeDate(rt.createdAt),
+      },
+      Realm.UpdateMode.Modified
+    );
+    imported++;
+    onProgress?.("import_rank_types", i + 1, rankTypesData.length);
   }
-
-  console.log(`✅ Imported ${imported}/${rankTypesData.length} rank types`);
   return imported;
 }
 
-// ===== ФАЗА 3: ИМПОРТ TAGS =====
-
-async function importTags(
+function importTags(
   realm: Realm,
   tagsData: RawTag[],
   onProgress?: ProgressCallback
-): Promise<number> {
-  console.log(`=== ИМПОРТ ${tagsData.length} TAGS ===`);
-
-  const tagsWithoutParent = tagsData.filter((t) => !t.parentTag);
-  const tagsWithParent = tagsData.filter((t) => t.parentTag);
-
+): number {
+  const pending = [...tagsData];
   let imported = 0;
 
-  for (const tag of tagsWithoutParent) {
-    try {
-      realm.write(() => {
-        realm.create(
-          "Tag",
-          {
-            _id: toObjectId(tag._id),
-            name: safeString(tag.name, "Unnamed Tag"),
-            createdAt: safeDate(tag.createdAt),
-            parentTag: null,
-            subTags: [],
-          },
-          Realm.UpdateMode.Modified
-        );
-      });
+  // Resolve parent references in topological order, supporting more than one nesting level.
+  while (pending.length) {
+    let madeProgress = false;
+    for (let i = pending.length - 1; i >= 0; i--) {
+      const tag = pending[i];
+      const parentId = tag.parentTag || null;
+      const parentTag = parentId
+        ? realm.objectForPrimaryKey("Tag", toObjectId(parentId))
+        : null;
+      if (parentId && !parentTag) continue;
 
+      const id = toObjectId(tag._id);
+      const existing: any = realm.objectForPrimaryKey("Tag", id);
+      const previousParent = existing?.parentTag;
+      if (previousParent && (!parentTag || objectIdString(previousParent._id) !== objectIdString(parentTag._id))) {
+        const oldIndex = Array.from(previousParent.subTags).findIndex((child: any) => objectIdString(child._id) === tag._id.toLowerCase());
+        if (oldIndex >= 0) previousParent.subTags.splice(oldIndex, 1);
+      }
+
+      const savedTag = realm.create(
+        "Tag",
+        {
+          _id: id,
+          name: safeString(tag.name, "Unnamed Tag"),
+          createdAt: safeDate(tag.createdAt),
+          parentTag,
+        },
+        Realm.UpdateMode.Modified
+      );
+
+      if (parentTag) pushIfMissing(parentTag.subTags, savedTag, tag._id);
+      pending.splice(i, 1);
       imported++;
-    } catch (error: any) {
-      console.error(`Failed to import Tag ${tag._id}:`, error.message);
+      madeProgress = true;
+    }
+    if (!madeProgress) {
+      const unresolved = pending.map((tag) => `${tag._id} -> ${tag.parentTag}`).join(", ");
+      throw new Error(`Cannot resolve tag parent references: ${unresolved}`);
     }
   }
 
-  for (const tag of tagsWithParent) {
-    try {
-      realm.write(() => {
-        const parentTag = tag.parentTag
-          ? realm.objectForPrimaryKey("Tag", toObjectId(tag.parentTag!))
-          : null;
-
-        realm.create(
-          "Tag",
-          {
-            _id: toObjectId(tag._id),
-            name: safeString(tag.name, "Unnamed Tag"),
-            createdAt: safeDate(tag.createdAt),
-            parentTag: parentTag ?? null,
-            subTags: [],
-          },
-          Realm.UpdateMode.Modified
-        );
-      });
-
-      imported++;
-    } catch (error: any) {
-      console.error(`Failed to import Tag ${tag._id}:`, error.message);
-    }
-  }
-
-  if (onProgress) {
-    onProgress("import_tags", tagsData.length, tagsData.length);
-  }
-
-  console.log(`✅ Imported ${imported}/${tagsData.length} tags`);
+  onProgress?.("import_tags", tagsData.length, tagsData.length);
   return imported;
 }
 
-// ===== ФАЗА 4: ИМПОРТ КЛАССОВ И ВЛОЖЕННЫХ ДАННЫХ =====
-
-async function importClasses(
+function importClasses(
   realm: Realm,
   classesData: RawClass[],
   onProgress?: ProgressCallback
-): Promise<{
-  classes: number;
-  categories: number;
-  objects: number;
-}> {
-  console.log(`=== ИМПОРТ ${classesData.length} КЛАССОВ ===`);
-
+): { classes: number; categories: number; objects: number } {
   let classesImported = 0;
   let categoriesImported = 0;
   let objectsImported = 0;
 
   for (let i = 0; i < classesData.length; i++) {
     const cls = classesData[i];
+    const classId = toObjectId(cls._id);
+    const classOfGrading = realm.create(
+      "ClassOfGrading",
+      {
+        _id: classId,
+        name: safeString(cls.name, "Unnamed Class"),
+        ...(cls.photo && isValidMediaUrl(cls.photo) ? { photo: cls.photo } : {}),
+        priority: safeNumber(cls.priority, 1),
+        objectName: safeStringOrUndefined(cls.objectName),
+        objectsName: safeStringOrUndefined(cls.objectsName),
+        noteName: safeStringOrUndefined(cls.noteName),
+        notesName: safeStringOrUndefined(cls.notesName),
+      },
+      Realm.UpdateMode.Modified
+    );
+    classesImported++;
 
-    try {
-      realm.write(() => {
-        // 1. Создать класс
-        const classOfGrading = realm.create(
-          "ClassOfGrading",
+    for (const cat of safeArray<RawCategory>(cls.categories)) {
+      const category = realm.create(
+        "Category",
+        {
+          _id: toObjectId(cat._id),
+          name: safeString(cat.name, "Unnamed Category"),
+          class_of_category: classOfGrading,
+          priority: safeNumber(cat.priority, 1),
+          weight: cat.weight == null ? undefined : safeNumber(cat.weight, 1),
+        },
+        Realm.UpdateMode.Modified
+      );
+      pushIfMissing(classOfGrading.categories, category, cat._id);
+      categoriesImported++;
+
+      for (const sub of safeArray<RawSubCategory>(cat.subcategories)) {
+        const subCategory = realm.create(
+          "SubCategory",
           {
-            _id: toObjectId(cls._id),
-            name: safeString(cls.name, "Unnamed Class"),
-            // photo — string? → передаём undefined если не remote URL
-            photo:
-              cls.photo && isValidMediaUrl(cls.photo) ? cls.photo : undefined,
-            priority: safeNumber(cls.priority, 0),
-            // nullable string? поля — undefined вместо пустой строки
-            objectName: safeStringOrUndefined(cls.objectName),
-            objectsName: safeStringOrUndefined(cls.objectsName),
-            noteName: safeStringOrUndefined(cls.noteName),
-            notesName: safeStringOrUndefined(cls.notesName),
-            categories: [],
-            objects: [],
-            tags: [],
-            rankTypes: [],
+            _id: toObjectId(sub._id),
+            name: safeString(sub.name, "Unnamed SubCategory"),
+            category,
+            priority: safeNumber(sub.priority, 1),
+            weight: sub.weight == null ? undefined : safeNumber(sub.weight, 1),
           },
           Realm.UpdateMode.Modified
         );
-
-        classesImported++;
-
-        // 2. Создать категории
-        const categories = safeArray<RawCategory>(cls.categories);
-        for (const cat of categories) {
-          const category = realm.create(
-            "Category",
-            {
-              _id: toObjectId(cat._id),
-              name: safeString(cat.name, "Unnamed Category"),
-              class_of_category: classOfGrading,
-              priority: safeNumber(cat.priority, 0),
-              weight: cat.weight != null ? safeNumber(cat.weight, 1) : undefined,
-              subcategories: [],
-            },
-            Realm.UpdateMode.Modified
-          );
-
-          // Добавляем категорию в список класса
-          classOfGrading.categories.push(category);
-          categoriesImported++;
-
-          // 3. Создать подкатегории
-          const subcategories = safeArray<RawSubCategory>(cat.subcategories);
-          for (const sub of subcategories) {
-            const subCategory = realm.create(
-              "SubCategory",
-              {
-                _id: toObjectId(sub._id),
-                name: safeString(sub.name, "Unnamed SubCategory"),
-                category: category,
-                priority: safeNumber(sub.priority, 0),
-                weight: sub.weight != null ? safeNumber(sub.weight, 1) : undefined,
-              },
-              Realm.UpdateMode.Modified
-            );
-
-            category.subcategories.push(subCategory);
-          }
-        }
-
-        // 4. Создать объекты
-        const objects = safeArray<RawObject>(cls.objects);
-        for (const obj of objects) {
-          const gradeObject = realm.create(
-            "GradeObject",
-            {
-              _id: toObjectId(obj._id),
-              name: safeString(obj.name, "Unnamed Object"),
-              photo:
-                obj.photo && isValidMediaUrl(obj.photo) ? obj.photo : undefined,
-              class_of_object: classOfGrading,
-              object_name: safeStringOrUndefined(obj.object_name),
-              description: safeStringOrUndefined(obj.description),
-              overall_rank:
-                obj.overall_rank != null ? safeNumber(obj.overall_rank) : null,
-              categories_of_object: [],
-              media: [],
-              notes: [],
-              tags: [],
-            },
-            Realm.UpdateMode.Modified
-          );
-
-          // Добавляем объект в список класса
-          classOfGrading.objects.push(gradeObject);
-          objectsImported++;
-
-          // 5. Создать медиа
-          // MediaItem — embedded объект: uri обязательное поле, пропускаем если нет валидного uri
-          const media = safeArray<RawMedia>(obj.media);
-          for (const m of media) {
-            // uri обязательное поле в Realm — пропускаем медиа без валидного uri
-            const uri = m.uri && isValidMediaUrl(m.uri) ? m.uri : null;
-            if (!uri) {
-              console.warn(`Skipping media item for object ${obj._id}: no valid uri`);
-              continue;
-            }
-
-            gradeObject.media.push({
-              uri,
-              mediaType: safeString(m.mediaType, "photo"),
-              mimeType: safeStringOrUndefined(m.mimeType),
-              thumbnailUri:
-                m.thumbnailUri && isValidMediaUrl(m.thumbnailUri)
-                  ? m.thumbnailUri
-                  : undefined,
-              caption: safeStringOrUndefined(m.caption),
-              createdAt: safeDate(m.createdAt),
-            } as any);
-          }
-
-          // 6. Создать заметки
-          const notes = safeArray<RawNote>(obj.notes);
-          for (const note of notes) {
-            gradeObject.notes.push({
-              text: safeString(note.text),
-              author: safeStringOrUndefined(note.author),
-              pinned: note.pinned ?? false,
-              photoUri:
-                note.photoUri && isValidMediaUrl(note.photoUri)
-                  ? note.photoUri
-                  : undefined,
-              createdAt: safeDate(note.createdAt),
-            } as any);
-          }
-
-          // 7. Создать рейтинги категорий
-          const ratings = safeArray<RawRating>(obj.categories_of_object);
-          for (const rating of ratings) {
-            const category = realm.objectForPrimaryKey(
-              "Category",
-              toObjectId(rating.category._id)
-            );
-
-            if (!category) {
-              console.warn(
-                `Category ${rating.category._id} not found for object ${obj._id}, skipping rating`
-              );
-              continue;
-            }
-
-            const proofData: { image?: string; text?: string } | null =
-              rating.proof
-                ? {
-                    image:
-                      rating.proof.image && isValidMediaUrl(rating.proof.image)
-                        ? rating.proof.image
-                        : undefined,
-                    text: safeStringOrUndefined(rating.proof.text),
-                  }
-                : null;
-
-            const categoryOfObject = realm.create(
-              "CategoryOfObject",
-              {
-                _id: toObjectId(rating._id),
-                category: category,
-                object: gradeObject,
-                rank:
-                  rating.rank != null ? safeNumber(rating.rank) : null,
-                subcategories_of_category: [],
-                proof: proofData,
-              },
-              Realm.UpdateMode.Modified
-            );
-
-            gradeObject.categories_of_object.push(categoryOfObject);
-
-            // 8. Создать рейтинги подкатегорий
-            const subratings = safeArray<RawSubrating>(
-              rating.subcategories_of_category
-            );
-            for (const subrating of subratings) {
-              const subcategory = realm.objectForPrimaryKey(
-                "SubCategory",
-                toObjectId(subrating.subcategory._id)
-              );
-
-              if (!subcategory) {
-                console.warn(
-                  `SubCategory ${subrating.subcategory._id} not found, skipping subrating`
-                );
-                continue;
-              }
-
-              const subProofData: { image?: string; text?: string } | null =
-                subrating.proof
-                  ? {
-                      image:
-                        subrating.proof.image &&
-                        isValidMediaUrl(subrating.proof.image)
-                          ? subrating.proof.image
-                          : undefined,
-                      text: safeStringOrUndefined(subrating.proof.text),
-                    }
-                  : null;
-
-              const subCategoryOfObject = realm.create(
-                "SubCategoryOfObject",
-                {
-                  _id: toObjectId(subrating._id),
-                  subcategory: subcategory,
-                  category_of_object: categoryOfObject,
-                  rank:
-                    subrating.rank != null ? safeNumber(subrating.rank) : null,
-                  color: safeStringOrUndefined(subrating.color),
-                  proof: subProofData,
-                },
-                Realm.UpdateMode.Modified
-              );
-
-              categoryOfObject.subcategories_of_category.push(
-                subCategoryOfObject
-              );
-            }
-          }
-
-          // 9. Связать теги объекта
-          const objTags = safeArray<RawTagRef>(obj.tags);
-          for (const tagRef of objTags) {
-            const tag = realm.objectForPrimaryKey(
-              "Tag",
-              toObjectId(tagRef._id)
-            );
-            if (tag) {
-              gradeObject.tags.push(tag);
-            }
-          }
-        }
-
-        // 10. Связать теги класса
-        const clsTags = safeArray<RawTagRef>(cls.tags);
-        for (const tagRef of clsTags) {
-          const tag = realm.objectForPrimaryKey("Tag", toObjectId(tagRef._id));
-          if (tag) {
-            classOfGrading.tags.push(tag);
-          }
-        }
-
-        // 11. Связать rank types класса
-        const rankTypes = safeArray<RawTagRef>(cls.rankTypes);
-        for (const rtRef of rankTypes) {
-          const rankType = realm.objectForPrimaryKey(
-            "RankType",
-            toObjectId(rtRef._id)
-          );
-          if (rankType) {
-            classOfGrading.rankTypes.push(rankType);
-          }
-        }
-      });
-
-      if (onProgress) {
-        onProgress("import_classes", i + 1, classesData.length);
+        pushIfMissing(category.subcategories, subCategory, sub._id);
       }
-    } catch (error: any) {
-      console.error(`Failed to import Class ${cls._id}:`, error.message);
-      console.error(error);
     }
+
+    for (const obj of safeArray<RawObject>(cls.objects)) {
+      const gradeObject = realm.create(
+        "GradeObject",
+        {
+          _id: toObjectId(obj._id),
+          name: safeString(obj.name, "Unnamed Object"),
+          ...(obj.photo && isValidMediaUrl(obj.photo) ? { photo: obj.photo } : {}),
+          class_of_object: classOfGrading,
+          object_name: safeStringOrUndefined(obj.object_name),
+          note_name: safeStringOrUndefined(obj.note_name),
+          galery_name: safeStringOrUndefined(obj.galery_name),
+          description: safeStringOrUndefined(obj.description),
+          overall_rank: obj.overall_rank != null ? safeNumber(obj.overall_rank) : null,
+        },
+        Realm.UpdateMode.Modified
+      );
+      pushIfMissing(classOfGrading.objects, gradeObject, obj._id);
+      objectsImported++;
+
+      if (Array.isArray(obj.media)) {
+        // Keep the local file when the server still has an empty placeholder
+        // (for example, metadata was saved but a previous upload failed).
+        const existingMedia = new Map<string, any>();
+        for (const current of gradeObject.media) {
+          if (current.syncId) {
+            existingMedia.set(current.syncId, {
+              uri: current.uri,
+              mimeType: current.mimeType,
+              thumbnailUri: current.thumbnailUri,
+              length: current.length,
+              isFavorite: current.isFavorite,
+              isHighlighted: current.isHighlighted,
+            });
+          }
+        }
+        const media = safeArray<RawMedia>(obj.media);
+        gradeObject.media.splice(0, gradeObject.media.length);
+        for (const m of media) {
+          const syncId = safeStringOrUndefined(m._id);
+          const previous = syncId ? existingMedia.get(syncId) : undefined;
+          const uri = m.uri && isValidMediaUrl(m.uri) ? m.uri : (previous?.uri || "");
+          const thumbnailUri = m.thumbnailUri && isValidMediaUrl(m.thumbnailUri)
+            ? m.thumbnailUri
+            : previous?.thumbnailUri;
+          gradeObject.media.push({
+            syncId,
+            uri,
+            mediaType: safeString(m.mediaType, "photo"),
+            mimeType: safeStringOrUndefined(m.mimeType) || previous?.mimeType,
+            thumbnailUri,
+            caption: safeStringOrUndefined(m.caption),
+            createdAt: safeDate(m.createdAt),
+            length: m.length == null ? previous?.length : safeNumber(m.length, 0),
+            isFavorite: m.isFavorite ?? previous?.isFavorite ?? false,
+            isHighlighted: m.isHighlighted ?? previous?.isHighlighted ?? false,
+          } as any);
+        }
+      }
+
+      if (Array.isArray(obj.notes)) {
+        const existingNotes = new Map<string, any>();
+        for (const current of gradeObject.notes) {
+          if (current.syncId) existingNotes.set(current.syncId, { photoUri: current.photoUri });
+        }
+        const notes = safeArray<RawNote>(obj.notes);
+        gradeObject.notes.splice(0, gradeObject.notes.length);
+        for (const note of notes) {
+          const syncId = safeStringOrUndefined(note._id);
+          const previous = syncId ? existingNotes.get(syncId) : undefined;
+          gradeObject.notes.push({
+            syncId,
+            text: safeString(note.text),
+            author: safeStringOrUndefined(note.author),
+            pinned: note.pinned ?? false,
+            photoUri: note.photoUri && isValidMediaUrl(note.photoUri)
+              ? note.photoUri
+              : previous?.photoUri,
+            createdAt: safeDate(note.createdAt),
+          } as any);
+        }
+      }
+
+      for (const rating of safeArray<RawRating>(obj.categories_of_object)) {
+        const categoryId = rating.category?._id;
+        if (!categoryId) throw new Error(`Rating ${rating._id} has no category reference`);
+        const category = realm.objectForPrimaryKey("Category", toObjectId(categoryId));
+        if (!category) throw new Error(`Category ${categoryId} not found for object ${obj._id}`);
+
+        const previousRating: any = realm.objectForPrimaryKey("CategoryOfObject", toObjectId(rating._id));
+        const proofData = rating.proof
+          ? {
+              image: rating.proof.image && isValidMediaUrl(rating.proof.image)
+                ? rating.proof.image
+                : previousRating?.proof?.image,
+              text: safeStringOrUndefined(rating.proof.text),
+            }
+          : null;
+        const categoryOfObject = realm.create(
+          "CategoryOfObject",
+          {
+            _id: toObjectId(rating._id),
+            category,
+            object: gradeObject,
+            rank: rating.rank != null ? safeNumber(rating.rank) : null,
+            proof: proofData,
+          },
+          Realm.UpdateMode.Modified
+        );
+        pushIfMissing(gradeObject.categories_of_object, categoryOfObject, rating._id);
+
+        for (const subrating of safeArray<RawSubrating>(rating.subcategories_of_category)) {
+          const subcategoryId = subrating.subcategory?._id;
+          if (!subcategoryId) throw new Error(`Subrating ${subrating._id} has no subcategory reference`);
+          const subcategory = realm.objectForPrimaryKey("SubCategory", toObjectId(subcategoryId));
+          if (!subcategory) throw new Error(`SubCategory ${subcategoryId} not found`);
+
+          const previousSubrating: any = realm.objectForPrimaryKey("SubCategoryOfObject", toObjectId(subrating._id));
+          const subProofData = subrating.proof
+            ? {
+                image: subrating.proof.image && isValidMediaUrl(subrating.proof.image)
+                  ? subrating.proof.image
+                  : previousSubrating?.proof?.image,
+                text: safeStringOrUndefined(subrating.proof.text),
+              }
+            : null;
+          const subCategoryOfObject = realm.create(
+            "SubCategoryOfObject",
+            {
+              _id: toObjectId(subrating._id),
+              subcategory,
+              category_of_object: categoryOfObject,
+              rank: subrating.rank != null ? safeNumber(subrating.rank) : null,
+              color: safeStringOrUndefined(subrating.color),
+              proof: subProofData,
+            },
+            Realm.UpdateMode.Modified
+          );
+          pushIfMissing(categoryOfObject.subcategories_of_category, subCategoryOfObject, subrating._id);
+        }
+      }
+
+      for (const tagRef of safeArray<RawTagRef>(obj.tags)) {
+        const tag = realm.objectForPrimaryKey("Tag", toObjectId(tagRef._id));
+        if (!tag) throw new Error(`Tag ${tagRef._id} not found for object ${obj._id}`);
+        pushIfMissing(gradeObject.tags, tag, tagRef._id);
+      }
+    }
+
+    for (const tagRef of safeArray<RawTagRef>(cls.tags)) {
+      const tag = realm.objectForPrimaryKey("Tag", toObjectId(tagRef._id));
+      if (!tag) throw new Error(`Tag ${tagRef._id} not found for class ${cls._id}`);
+      pushIfMissing(classOfGrading.tags, tag, tagRef._id);
+    }
+    for (const rtRef of safeArray<RawTagRef>(cls.rankTypes)) {
+      const rankType = realm.objectForPrimaryKey("RankType", toObjectId(rtRef._id));
+      if (!rankType) throw new Error(`RankType ${rtRef._id} not found for class ${cls._id}`);
+      pushIfMissing(classOfGrading.rankTypes, rankType, rtRef._id);
+    }
+
+    onProgress?.("import_classes", i + 1, classesData.length);
   }
 
-  console.log(
-    `✅ Imported ${classesImported} classes, ${categoriesImported} categories, ${objectsImported} objects`
-  );
-
-  return {
-    classes: classesImported,
-    categories: categoriesImported,
-    objects: objectsImported,
-  };
+  return { classes: classesImported, categories: categoriesImported, objects: objectsImported };
 }
 
 // ===== ФАЗА 5: ЗАГРУЗКА ФАЙЛОВ (ОПЦИОНАЛЬНО) =====
@@ -847,12 +754,11 @@ async function downloadFiles(
         console.error(`Failed to download ${file.url}: status ${result.status}`);
       }
 
-      if (onProgress) {
-        onProgress("download_files", i + 1, filesToDownload.length);
-      }
     } catch (error: any) {
       failed++;
       console.error(`Error downloading ${file.url}:`, error.message);
+    } finally {
+      onProgress?.("download_files", i + 1, filesToDownload.length);
     }
   }
 
@@ -923,64 +829,40 @@ export async function importDataFromServer(
     console.log(`Clear existing: ${clearExisting}`);
     console.log(`Download files: ${downloadFilesFlag}`);
 
-    // ФАЗА 0: Очистка существующих данных (опционально)
-    if (clearExisting) {
-      console.log("\n[0/5] Очистка существующих данных...");
-      realm.write(() => {
-        realm.deleteAll();
-      });
-      console.log("✅ Database cleared");
-    }
-
-    // ФАЗА 1: Загрузка данных с сервера
-    console.log("\n[1/5] Загрузка данных с сервера...");
+    // Fetch and validate before touching the local database. A network failure must never erase data.
     const fetchResult = await fetchDataFromServer(onProgress);
-
     if (!fetchResult.success) {
-      return {
-        success: false,
-        message: `Data fetch failed: ${fetchResult.error}`,
-      };
+      return { success: false, message: `Data fetch failed: ${fetchResult.error}` };
     }
 
-    const data = fetchResult.data;
+    const data = fetchResult.data || {};
+    const rankTypesData = safeArray<RawRankType>(data.RankType);
+    const tagsData = safeArray<RawTag>(data.Tag);
+    const classesData = safeArray<RawClass>(data.ClassOfGrading);
 
-    // ФАЗА 2: Импорт RankTypes
-    console.log("\n[2/5] Импорт RankTypes...");
-    const rankTypesCount = await importRankTypes(
-      realm,
-      safeArray<RawRankType>(data.RankType),
-      onProgress
-    );
+    let rankTypesCount = 0;
+    let tagsCount = 0;
+    let importStats = { classes: 0, categories: 0, objects: 0 };
 
-    // ФАЗА 3: Импорт Tags
-    console.log("\n[3/5] Импорт Tags...");
-    const tagsCount = await importTags(
-      realm,
-      safeArray<RawTag>(data.Tag),
-      onProgress
-    );
+    // Realm.write is synchronous and atomic: any invalid ID/reference rolls back the whole metadata import.
+    realm.write(() => {
+      if (clearExisting) realm.deleteAll();
+      rankTypesCount = importRankTypes(realm, rankTypesData, onProgress);
+      tagsCount = importTags(realm, tagsData, onProgress);
+      importStats = importClasses(realm, classesData, onProgress);
+    });
 
-    // ФАЗА 4: Импорт классов и всех вложенных данных
-    console.log("\n[4/5] Импорт классов и объектов...");
-    const importStats = await importClasses(
-      realm,
-      safeArray<RawClass>(data.ClassOfGrading),
-      onProgress
-    );
-
-    // ФАЗА 5: Загрузка файлов (опционально)
     let fileStats = { downloaded: 0, failed: 0, totalSize: 0 };
     if (downloadFilesFlag) {
-      console.log("\n[5/5] Загрузка файлов...");
       fileStats = await downloadFiles(realm, onProgress);
     }
 
-    console.log("✅ ИМПОРТ ЗАВЕРШЕН УСПЕШНО");
-
+    const partialFileFailure = fileStats.failed > 0;
     return {
-      success: true,
-      message: "Импорт завершен успешно",
+      success: !partialFileFailure,
+      message: partialFileFailure
+        ? `Metadata restored, but ${fileStats.failed} file(s) could not be downloaded. Retry import with files enabled.`
+        : "Импорт завершен успешно",
       stats: {
         total_classes: importStats.classes,
         total_objects: importStats.objects,
@@ -988,17 +870,12 @@ export async function importDataFromServer(
         total_tags: tagsCount,
         total_rank_types: rankTypesCount,
         files_downloaded: fileStats.downloaded,
-        total_size_mb: parseFloat(
-          (fileStats.totalSize / 1024 / 1024).toFixed(2)
-        ),
+        total_size_mb: parseFloat((fileStats.totalSize / 1024 / 1024).toFixed(2)),
       },
     };
   } catch (error: any) {
     console.error("=== ОШИБКА ИМПОРТА ===", error);
-    return {
-      success: false,
-      message: error.message || "Unknown error",
-    };
+    return { success: false, message: error.message || "Unknown error" };
   }
 }
 

@@ -3,8 +3,7 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import { useEffect, useRef, useState } from "react";
 import {
   Animated,
-  Dimensions,
-  Pressable,
+  Dimensions, Image, Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -34,17 +33,18 @@ export default function VideoPlayer({
 }) {
   const player = useVideoPlayer(uri, (player) => {
     player.loop = false;
+    try {
+      player.timeUpdateEventInterval = 0.5;
+    } catch {}
     if (isActive) {
       player.play();
     }
   });
 
-
   const [isPlaying, setIsPlaying] = useState<boolean>(isActive);
   const [position, setPosition] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
   const [showPoster, setShowPoster] = useState<boolean>(!!poster);
-
   const [ended, setEnded] = useState(false);
 
   const [controlsVisible, setControlsVisible] = useState<boolean>(true);
@@ -61,6 +61,8 @@ export default function VideoPlayer({
     const getCurrentFromEvent = (e: any) =>
       e == null ? null : (e.currentTime ?? e.position ?? e.playbackTime ?? null);
 
+    const durationRef = { current: duration };
+
     const maybeSetDurationFromPlayer = () => {
       try {
         if (player.duration && durationRef.current === 0) {
@@ -72,8 +74,6 @@ export default function VideoPlayer({
         }
       } catch {}
     };
-
-    const durationRef = { current: duration };
 
     const s1 = player.addListener('playingChange', (e: any) => {
       const playing = normalizePlaying(e);
@@ -98,11 +98,17 @@ export default function VideoPlayer({
       } else {
         maybeSetDurationFromPlayer();
       }
+
+      if (e?.status === 'error' || e?.error) {
+        try {
+          player.replace(uri);
+        } catch {}
+      }
     });
 
     const s4 = player.addListener('playToEnd', () => {
       setIsPlaying(false);
-      setEnded(true); 
+      setEnded(true);
       showControls(true);
       if (player.duration) {
         try {
@@ -112,57 +118,26 @@ export default function VideoPlayer({
       }
     });
 
-    let pollId: number | null = null;
-    const startPolling = () => {
-      if (pollId != null) return;
-      pollId = setInterval(() => {
-        try {
-          const ct = (typeof (player as any).currentTime === 'number') ? (player as any).currentTime : null;
-          if (ct != null) {
-            setPosition(Math.floor(ct * 1000));
-          }
-          maybeSetDurationFromPlayer();
-        } catch {}
-      }, 500) as unknown as number;
-    };
-    const stopPolling = () => {
-      if (pollId != null) {
-        clearInterval(pollId);
-        pollId = null;
-      }
-    };
-
-    try {
-      if ((player as any).playing) startPolling();
-    } catch { /* ignore */ }
-
-    const s5 = player.addListener('playingChange', (e: any) => {
-      const isP = normalizePlaying(e);
-      if (isP) startPolling();
-      else stopPolling();
-    });
-
     return () => {
       s1?.remove?.();
       s2?.remove?.();
       s3?.remove?.();
       s4?.remove?.();
-      s5?.remove?.();
-      stopPolling();
+
+      try { player.pause(); } catch {}
     };
   }, [player]);
 
-    useEffect(() => {
-      if (isActive) {
-        player.play();
-        showControlsTemporarily();
-      } else {
-        player.pause();
-        hideControlsImmediate();
-      }
-      return () => clearHideTimer();
+  useEffect(() => {
+    if (isActive) {
+      player.play();
+      showControlsTemporarily();
+    } else {
+      player.pause();
+      hideControlsImmediate();
+    }
+    return () => clearHideTimer();
   }, [isActive, player]);
-
 
   const clearHideTimer = () => {
     if (hideTimer.current) {
@@ -228,7 +203,7 @@ export default function VideoPlayer({
   const seekTo = (percent: number) => {
     if (!duration) return;
     const ms = duration * percent;
-    player.currentTime = ms / 1000; 
+    player.currentTime = ms / 1000;
     setPosition(ms);
     setEnded(false);
     showControls(true);
@@ -241,21 +216,27 @@ export default function VideoPlayer({
     seekTo(p);
   };
 
-
   return (
       <View style={styles.container}>
-        
+
         <VideoView
           player={player}
           style={styles.fullscreenMedia}
           contentFit="contain"
           nativeControls={false}
-          allowsFullscreen={true} 
+          allowsFullscreen={true}
           allowsPictureInPicture={true}
         />
+        {showPoster && poster && (    
+          <Image
+            source={{ uri: poster }}
+            style={[styles.fullscreenMedia, StyleSheet.absoluteFill]}
+            resizeMode="contain"
+          />
+        )}
 
-        <Pressable 
-          style={StyleSheet.absoluteFill} 
+        <Pressable
+          style={StyleSheet.absoluteFill}
           onPress={toggleControls}
         >
           <View style={{flex: 1}} />
@@ -287,7 +268,7 @@ export default function VideoPlayer({
                 style={styles.progressContainer}
                 onLayout={(e) => (barWidthRef.current = e.nativeEvent.layout.width)}
                 onPress={onBarPress}
-                hitSlop={{top: 10, bottom: 10}} 
+                hitSlop={{top: 10, bottom: 10}}
               >
                 <View style={styles.progressBar}>
                   <View
@@ -323,7 +304,7 @@ const styles = StyleSheet.create({
     width: width,
     height: height,
   },
-  
+
   controlsOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 10,
@@ -339,9 +320,9 @@ const styles = StyleSheet.create({
 
   bottomControlsContainer: {
     width: '100%',
-    // paddingBottom: 40, 
+    // paddingBottom: 40,
     paddingHorizontal: 20,
-    backgroundColor: 'transparent', 
+    backgroundColor: 'transparent',
   },
 
   controlsRow: {
@@ -349,7 +330,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  
+
   timeText: {
     color: '#fff',
     width: 50,
@@ -360,7 +341,8 @@ const styles = StyleSheet.create({
   progressContainer: {
     flex: 1,
     marginHorizontal: 12,
-    height: 30, 
+    marginVertical: 10,
+    height: 30,
     justifyContent: 'center',
   },
   progressBar: {

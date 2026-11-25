@@ -1,4 +1,6 @@
 import { Colors } from '@/CONSTANTS';
+import { GradeObject } from '@/realm/models';
+import { useObject } from '@realm/react';
 import React, { useEffect } from 'react';
 import {
   Animated,
@@ -26,6 +28,9 @@ type ObjectCardProps = {
 const ObjectCard: React.FC<ObjectCardProps> = React.memo(({ 
   item, onPress, onLongPress, index, topNumber, type = 2, isSelected = false, isMultiSelectMode = false 
 }) => {
+  const liveItem = useObject(GradeObject, item._id);
+
+  if (!liveItem) return null;
   const scale = React.useRef(new Animated.Value(1)).current;
   const opacity = React.useRef(new Animated.Value(0)).current;
   const animatedIn = React.useRef(false);
@@ -61,7 +66,7 @@ const ObjectCard: React.FC<ObjectCardProps> = React.memo(({
   };
 
   // const imageUri = item.photo ? `${item.photo}?v=${Date.now()}` : "https://placekitten.com/200/200";
-  const imageUri = item.photo ?? "https://placekitten.com/200/200";
+  const imageUri = liveItem.photo ?? "https://placekitten.com/200/200";
 
   return (
     <Animated.View style={{ 
@@ -72,7 +77,7 @@ const ObjectCard: React.FC<ObjectCardProps> = React.memo(({
       borderRadius: 12,
     }}>
       <Pressable
-        onPress={() => onPress(item)}
+        onPress={() => onPress(liveItem)}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         onLongPress={onLongPress}
@@ -91,7 +96,7 @@ const ObjectCard: React.FC<ObjectCardProps> = React.memo(({
           resizeMode="cover"
         />
         <Text numberOfLines={2} style={[styles.title, { fontSize: type === 2 ? 15 : 12 }]}>
-          {item.name}
+          {liveItem.name}
         </Text>
         <View style={{ flexDirection: "row" }}>
           {topNumber !== undefined && topNumber > 0 && topNumber < 11 && (
@@ -100,7 +105,7 @@ const ObjectCard: React.FC<ObjectCardProps> = React.memo(({
             </View>
           )}
           <Text style={[styles.rank, type === 3 && styles.rankType3]}>
-            ⭐ {item.overall_rank?.toFixed(2) ?? "—"}
+            ⭐ {liveItem.overall_rank?.toFixed(2) ?? "—"}
           </Text>
         </View>
       </Pressable>

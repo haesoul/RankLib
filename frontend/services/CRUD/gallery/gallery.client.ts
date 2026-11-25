@@ -9,9 +9,11 @@ const VIDEO_EXTENSIONS = ["mp4", "mov", "mkv", "webm", "m4v"];
 
 export interface MediaCreateItem {
   uri: string;     
+  thumbnailUri?: string; 
   mediaType?: string;   
   mimeType?: string;
   caption?: string;
+  length?: number;
 }
 
 interface CreateMediaArgs {
@@ -29,19 +31,36 @@ export const createMedia = async ({ realm, obj, items }: CreateMediaArgs): Promi
   const prepared = await Promise.all(
     validItems.map(async (item) => {
       const ext = (item.uri.split(".").pop()?.split("?")[0] || "").toLowerCase();
-      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext || "jpg"}`;
+      const baseName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const fileName = `${baseName}.${ext || "jpg"}`;
       const destPath = MediaPaths.galleryFile(obj.class_of_object, obj._id, fileName);
 
       try {
         await FileSystem.makeDirectoryAsync(galleryDir, { intermediates: true });
+        
         await FileSystem.moveAsync({ from: item.uri, to: destPath });
+
+        let finalThumbnailPath = destPath;
+
+        if (item.thumbnailUri && item.thumbnailUri !== item.uri) {
+          const thumbFileName = `thumb_${baseName}.jpg`;
+          const thumbDestPath = MediaPaths.galleryFile(obj.class_of_object, obj._id, thumbFileName);
+          
+          try {
+            await FileSystem.moveAsync({ from: item.thumbnailUri, to: thumbDestPath });
+            finalThumbnailPath = thumbDestPath;
+          } catch (e) {
+            console.warn("Не удалось сохранить thumbnail, фоллбэк на видео:", e);
+          }
+        }
 
         return {
           uri: destPath,
           mediaType: item.mediaType ?? (VIDEO_EXTENSIONS.includes(ext) ? "video" : "photo"),
           mimeType: item.mimeType,
           caption: item.caption,
-          thumbnailUri: destPath,
+          thumbnailUri: finalThumbnailPath, 
+          length: item.length,
           createdAt: new Date(),
         };
       } catch (err) {
@@ -75,7 +94,11 @@ export async function deleteMedia(
   const items = Array.isArray(target) ? target : [target];
   if (!items.length) return false;
 
-  const urisToDelete = items.map((m) => m.uri).filter((u): u is string => Boolean(u));
+  const urisToDelete: string[] = [];
+  items.forEach((m) => {
+    if (m.uri) urisToDelete.push(m.uri);
+    if (m.thumbnailUri && m.thumbnailUri !== m.uri) urisToDelete.push(m.thumbnailUri);
+  });
 
   try {
     realm.write(() => {
